@@ -101,6 +101,23 @@ check(ActiveTab.readScript(.edge).contains("tell application \"Microsoft Edge\""
 check(Browser.withBundleID("com.microsoft.edgemac") == .edge, "browser by bundle ID")
 check(Hotkey(Config.defaultSendHotkey)?.display == "⌃⌥⇧B", "send shortcut")
 
+// Finding a profile's window
+let wins = Windows.parse("11\tnormal\tfalse\tInbox - Gmail - Work\n12\tincognito\tfalse\tSecret - Personal\n13\tnormal\ttrue\tNews - Personal\n14\tnormal\tfalse\tTabs\twith a tab - Ten\n")
+check(wins.count == 4 && wins[2].minimized && wins[3].title == "Tabs\twith a tab - Ten", "window list parsed")
+let personal = chrome[0], work = chrome[1], ten = chrome[2]
+check(Windows.pick(for: work, in: wins, known: [], siblings: chrome)?.id == "11", "match by title suffix")
+check(Windows.pick(for: personal, in: wins, known: [], siblings: chrome)?.id == "13", "skips incognito, finds minimized")
+check(Windows.pick(for: ten, in: wins, known: [], siblings: chrome)?.id == "14", "titles may contain tabs")
+check(Windows.pick(for: personal, in: wins, known: ["99", "11"], siblings: chrome)?.id == "11", "known window wins, gone ones skipped")
+check(Windows.pick(for: edge, in: [BrowserWindow(id: "5", mode: "normal", minimized: false, title: "Canvas")],
+                   known: [], siblings: [edge])?.id == "5", "single-profile browser: any window")
+check(Windows.pick(for: work, in: [BrowserWindow(id: "6", mode: "normal", minimized: false, title: "Untitled")],
+                   known: [], siblings: chrome) == nil, "no match → new window")
+let similar = [Profile(browser: .chrome, directory: "Default", name: "Bin", email: nil),
+               Profile(browser: .chrome, directory: "Profile 4", name: "Bin Work", email: nil)]
+check(Windows.pick(for: similar[0], in: [BrowserWindow(id: "7", mode: "normal", minimized: false, title: "Doc - Bin Work")],
+                   known: [], siblings: similar) == nil, "a shorter name does not claim a longer one's window")
+
 // Hotkeys
 check(Hotkey("ctrl+option+b")?.keyCode == 11, "hotkey key code")
 check(Hotkey("ctrl+option+b")?.display == "⌃⌥B", "hotkey display")

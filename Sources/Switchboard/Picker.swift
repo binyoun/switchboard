@@ -99,6 +99,9 @@ struct PickerView: View {
             HStack(spacing: 14) {
                 Text("↩ open")
                 Text("1–9 jump")
+                if model.link == nil {
+                    Text("⌥↩ new window")
+                }
                 if model.sendTab != nil {
                     Text(model.closesByDefault ? "⌥↩ send, keep tab" : "⌥↩ send and close tab")
                 }

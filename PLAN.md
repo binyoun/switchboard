@@ -53,7 +53,7 @@ One place to (a) jump to any browser profile and (b) have every clicked link ope
 
 ## Known hard parts
 
-- **Focusing an existing window of a given profile.** Chrome's AppleScript lists windows but not their profile. Options: match by window title (Chrome adds the profile name when several are open), or remember windows Switchboard opened. Fallback: open a new window, as Chrome's own profile menu does.
+- **Focusing an existing window of a given profile.** Chrome's AppleScript lists windows (id, mode, minimised, full title) but not their profile. Done in `Windows.pick`: (1) window IDs Switchboard has seen the profile use, learned 1 s after every launch from `id of window 1`; (2) any normal window if the browser has one profile; (3) a title ending " - <profile name>", longest name first. Otherwise a new window. The title format is Chromium's multi-profile behaviour and may change; (1) and (2) do not depend on it.
 - **AppleScript permission.** Reading the active tab (milestone 5) needs Automation permission for each browser; the first call shows a macOS prompt.
 - **Same Google account in two profiles.** Rules route by host, not by account; `docs.google.com` can only go to one profile unless the picker is used.
 

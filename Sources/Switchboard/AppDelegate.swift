@@ -107,10 +107,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         profiles.map { PickerModel.Row(profile: $0, aliases: config.aliases(for: $0)) }
     }
 
-    private func open(_ profile: Profile, url: URL? = nil) {
+    /// Window IDs each profile has been seen using (profile ref → IDs, most recent last).
+    /// In memory only: IDs are not reused while a browser runs, and reset when it restarts.
+    private var knownWindows: [String: [String]] = [:]
+
+    /// Opens a link in `profile`, or with no link switches to it: brings its existing window to
+    /// the front if one can be found, otherwise opens a new window. `newWindow` skips the search.
+    private func open(_ profile: Profile, url: URL? = nil, newWindow: Bool = false) {
+        let running = !NSRunningApplication.runningApplications(withBundleIdentifier: profile.browser.bundleID).isEmpty
+        guard url == nil, !newWindow, running else {
+            launch(profile, url: url)
+            return
+        }
+        let known = knownWindows[profile.ref] ?? []
+        let siblings = profiles.filter { $0.browser == profile.browser }
+        Self.scriptQueue.async {
+            var raised: String?
+            if case .success(let out) = ActiveTab.script(Windows.listScript(profile.browser), browser: profile.browser),
+               let w = Windows.pick(for: profile, in: Windows.parse(out), known: known, siblings: siblings),
+               case .success = ActiveTab.script(Windows.focusScript(profile.browser, windowID: w.id), browser: profile.browser) {
+                raised = w.id
+            }
+            DispatchQueue.main.async {
+                if let raised {
+                    self.remember(windowID: raised, for: profile)
+                } else {
+                    self.launch(profile, url: nil)   // none found, or no permission: new window
+                }
+            }
+        }
+    }
+
+    private func launch(_ profile: Profile, url: URL?) {
         DispatchQueue.global(qos: .userInitiated).async {
             _ = try? Launcher.open(profile, url: url)
+            // Whatever window the browser used is now in front: note it as this profile's.
+            Self.scriptQueue.asyncAfter(deadline: .now() + 1.0) {
+                guard case .success(let id) = ActiveTab.script(Windows.frontIDScript(profile.browser), browser: profile.browser),
+                      !id.isEmpty else { return }
+                DispatchQueue.main.async { self.remember(windowID: id, for: profile) }
+            }
         }
+    }
+
+    /// Records that `windowID` belongs to `profile` (and to no other profile).
+    private func remember(windowID: String?, for profile: Profile) {
+        guard let id = windowID else { return }
+        for key in knownWindows.keys { knownWindows[key]?.removeAll { $0 == id } }
+        var ids = knownWindows[profile.ref] ?? []
+        ids.append(id)
+        knownWindows[profile.ref] = Array(ids.suffix(10))
     }
 
     // MARK: links
@@ -234,7 +280,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let tab = picker.model.sendTab
         // ⌘: remember the site for this profile (only when there is a link).
         if mods.contains(.command), let url, picker.model.link != nil { remember(url, in: profile) }
-        open(profile, url: url)
+        // ⌥ when only switching: always a new window rather than the existing one.
+        open(profile, url: url, newWindow: tab == nil && url == nil && mods.contains(.option))
 
         guard let tab else { return }
         // ⌥ flips the closeAfterSend setting for this one send.
@@ -280,7 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.representedObject = p.ref
             item.image = Avatar.image(p, size: 22)
             item.attributedTitle = title(for: p)
-            item.toolTip = "Hold ⇧ to open the link on the clipboard"
+            item.toolTip = "⇧ opens the link on the clipboard · ⌥ opens a new window"
             menu.addItem(item)
         }
 
@@ -346,8 +393,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openProfile(_ sender: NSMenuItem) {
         guard let ref = sender.representedObject as? String,
               let p = profiles.first(where: { $0.ref == ref }) else { return }
-        let url = NSEvent.modifierFlags.contains(.shift) ? PickerController.clipboardURL() : nil
-        open(p, url: url)
+        let mods = NSEvent.modifierFlags
+        let url = mods.contains(.shift) ? PickerController.clipboardURL() : nil
+        open(p, url: url, newWindow: mods.contains(.option))
     }
 
     @objc private func showPicker() { togglePicker() }

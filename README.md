@@ -60,12 +60,15 @@ Click the branch icon in the menu bar, or press **⌃⌥B**.
 |---|---|
 | type | filter by name, email, alias or browser |
 | ↑ ↓ | move |
-| ↩ or 1–9 | open a new window in that profile |
+| ↩ or 1–9 | switch to that profile: bring its window to the front, or open one if it has none |
+| ⌥↩ or ⌥1–9 | always open a new window in that profile |
 | ⇧↩ or ⇧1–9 | open the link on your clipboard in that profile |
 | ⌘↩ or ⌘1–9 | when the picker came from a clicked link: open it and always send that site to this profile |
 | esc | close |
 
-In the menu, hold ⇧ while choosing a profile to open the clipboard link there. If the menu bar icon is hidden behind the camera notch, the shortcut still works; ⌘-drag menu bar icons to make room.
+In the menu, hold ⇧ while choosing a profile to open the clipboard link there, or ⌥ for a new window.
+
+**How Switchboard finds a profile's window.** Chrome and Edge do not tell other apps which profile a window belongs to, so Switchboard works it out, in this order: windows it has already seen that profile use (any window it opened, or opened a link in, while the browser has been running); any window, when the browser has only one profile; and the window title, which Chrome ends with " - *profile name*" when several profiles exist. If none of these finds one, you get a new window. This uses the same Automation permission as sending a tab; without it, switching opens a new window. Links always open as a tab in the profile's existing window. If the menu bar icon is hidden behind the camera notch, the shortcut still works; ⌘-drag menu bar icons to make room.
 
 ### Send a tab to another profile
 
