@@ -63,11 +63,12 @@ do {
             }
             let siblings = profiles.filter { $0.browser == b }
             let owners = Windows.owners(b, profiles: siblings)
+            let apps = Windows.appWindows(b, profiles: siblings)
             for w in Windows.parse(out) {
                 let owner = siblings.count == 1 ? siblings[0]
                     : siblings.first { $0.directory == owners[w.id] }
                 let who = owner.map { aliases(for: $0).first ?? $0.ref } ?? "?"
-                print("\(b.id) \(w.id)  \(w.mode)\(w.minimized ? ", minimised" : "")  → \(who)  \(w.title)")
+                print("\(b.id) \(w.id)  \(w.mode)\(apps.contains(w.id) ? ", app" : "")\(w.minimized ? ", minimised" : "")  → \(who)  \(w.title)")
             }
         }
 

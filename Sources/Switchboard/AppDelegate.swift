@@ -124,8 +124,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Self.scriptQueue.async {
             var raised: String?
             let owners = siblings.count > 1 ? Windows.owners(profile.browser, profiles: siblings) : [:]
+            let apps = Windows.appWindows(profile.browser, profiles: siblings)
             if case .success(let out) = ActiveTab.script(Windows.listScript(profile.browser), browser: profile.browser),
-               let w = Windows.pick(for: profile, in: Windows.parse(out), owners: owners, known: known, siblings: siblings),
+               let w = Windows.pick(for: profile, in: Windows.parse(out), owners: owners, apps: apps, known: known, siblings: siblings),
                case .success = ActiveTab.script(Windows.focusScript(profile.browser, windowID: w.id), browser: profile.browser) {
                 raised = w.id
             }

@@ -116,6 +116,12 @@ check(Windows.pick(for: edge, in: [BrowserWindow(id: "5", mode: "normal", minimi
 check(Windows.pick(for: work, in: [BrowserWindow(id: "6", mode: "normal", minimized: false, title: "Untitled")],
                    owners: [:], known: [], siblings: chrome) == nil, "no match → new window")
 check(!Windows.listScript(.chrome).contains("& tab &"), "list script does not use the word tab inside tell")
+let appWin = BrowserWindow(id: "20", mode: "normal", minimized: false, title: "Garden")
+let tabWin = BrowserWindow(id: "21", mode: "normal", minimized: false, title: "Inbox")
+let both = ["20": "Default", "21": "Default"]
+check(Windows.pick(for: personal, in: [appWin, tabWin], owners: both, apps: ["20"], known: [], siblings: chrome)?.id == "21", "browser window preferred over a web app")
+check(Windows.pick(for: personal, in: [appWin], owners: both, apps: ["20"], known: [], siblings: chrome)?.id == "20", "web app used when it is the only window")
+check(Windows.pick(for: work, in: [appWin], owners: both, apps: ["20"], known: [], siblings: chrome) == nil, "another profile's web app is not used")
 // SNSS: header, then [uint16 size][command id][payload]; the first payload int32 is the ID.
 var snss = Data("SNSS".utf8) + Data([3, 0, 0, 0])
 for (cmd, id) in [(UInt8(0), Int32(881674403)), (UInt8(9), Int32(-5))] {

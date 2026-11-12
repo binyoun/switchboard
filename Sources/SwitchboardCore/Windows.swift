@@ -62,46 +62,63 @@ public enum Windows {
     }
 
     /// The window to bring forward for `profile`, or nil to open a new one.
-    /// - `owners`: window ID → profile directory, read from each profile's session file.
+    /// - `owners`: window ID → profile directory, read from each profile's session files.
+    /// - `apps`: IDs of installed web-app windows (preferred less than browser windows).
     /// - `known`: window IDs Switchboard has seen this profile use (most recent last).
     /// - `siblings`: all profiles of the same browser.
     public static func pick(for profile: Profile, in windows: [BrowserWindow], owners: [String: String],
-                            known: [String], siblings: [Profile]) -> BrowserWindow? {
+                            apps: Set<String> = [], known: [String], siblings: [Profile]) -> BrowserWindow? {
         let normal = windows.filter { $0.mode == "normal" }
+        let browserWindows = normal.filter { !apps.contains($0.id) }
+        let mine: (BrowserWindow) -> Bool = { owners[$0.id] == profile.directory }
 
         // 1. The browser has only this profile: any window is its window (front-most first).
-        if siblings.count <= 1 { return normal.first }
+        if siblings.count <= 1 { return browserWindows.first ?? normal.first }
 
-        // 2. A window the profile's session file lists (front-most first).
-        if let w = normal.first(where: { owners[$0.id] == profile.directory }) { return w }
+        // 2. A browser window the profile's session file lists (front-most first).
+        if let w = browserWindows.first(where: mine) { return w }
 
         // 3. A window we have seen this profile use, unless the session files say it is another's.
         //    Covers windows opened in the last few seconds, before Chromium writes its session file.
         for id in known.reversed() {
-            if let w = normal.first(where: { $0.id == id }), owners[id] == nil || owners[id] == profile.directory {
+            if let w = browserWindows.first(where: { $0.id == id }), owners[id] == nil || owners[id] == profile.directory {
                 return w
             }
         }
-        return nil
+        // 4. Only an installed web app of this profile is open: bring that forward.
+        return normal.first(where: mine)
+    }
+
+    /// IDs of installed web-app windows (from each profile's newest `Sessions/Apps_*` file).
+    public static func appWindows(_ browser: Browser, profiles: [Profile],
+                                  home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Set<String> {
+        var out = Set<String>()
+        for p in profiles where p.browser == browser {
+            guard let data = newestSessionFile(browser, p, prefix: "Apps_", home: home) else { continue }
+            out.formUnion(sessionIDs(in: data).map(String.init))
+        }
+        return out
+    }
+
+    static func newestSessionFile(_ browser: Browser, _ p: Profile, prefix: String, home: URL) -> Data? {
+        let dir = browser.supportDirectory(home: home).appendingPathComponent(p.directory).appendingPathComponent("Sessions")
+        let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        let date: (URL) -> Date = { (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast }
+        guard let newest = files.filter({ $0.lastPathComponent.hasPrefix(prefix) }).max(by: { date($0) < date($1) }) else { return nil }
+        return try? Data(contentsOf: newest)
     }
 
     /// Window ID → profile directory for every profile of `browser`.
     /// The AppleScript window ID is Chromium's session ID, which the profile's newest
-    /// `Sessions/Session_*` file records.
+    /// `Sessions/Session_*` file records (and `Apps_*`, for installed web apps).
     public static func owners(_ browser: Browser, profiles: [Profile],
                               home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [String: String] {
-        let fm = FileManager.default
         var out: [String: String] = [:]
         for p in profiles where p.browser == browser {
-            let dir = browser.supportDirectory(home: home).appendingPathComponent(p.directory).appendingPathComponent("Sessions")
-            let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
-            let newest = files.filter { $0.lastPathComponent.hasPrefix("Session_") }.max { a, b in
-                let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                return da < db
+            for prefix in ["Apps_", "Session_"] {   // browser windows win if an ID were in both
+                guard let data = newestSessionFile(browser, p, prefix: prefix, home: home) else { continue }
+                for id in sessionIDs(in: data) { out[String(id)] = p.directory }
             }
-            guard let newest, let data = try? Data(contentsOf: newest) else { continue }
-            for id in sessionIDs(in: data) { out[String(id)] = p.directory }
         }
         return out
     }
