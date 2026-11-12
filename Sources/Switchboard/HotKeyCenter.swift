@@ -1,37 +1,44 @@
 import Carbon
 import SwitchboardCore
 
-/// Registers one global shortcut with Carbon's RegisterEventHotKey.
+/// Global shortcuts through Carbon's RegisterEventHotKey.
 /// Unlike an event tap this needs no Accessibility permission.
 final class HotKeyCenter {
-    private var ref: EventHotKeyRef?
+    private var refs: [UInt32: EventHotKeyRef] = [:]
     private var handlerInstalled = false
-    fileprivate static var action: (() -> Void)?
+    fileprivate static var actions: [UInt32: () -> Void] = [:]
 
-    /// Returns false if macOS refused the shortcut (usually because another app holds it).
+    /// Registers `hotkey` under `slot` (replacing what was there).
+    /// Returns false if macOS refused it (usually because another app holds it).
     @discardableResult
-    func register(_ hotkey: Hotkey, action: @escaping () -> Void) -> Bool {
-        unregister()
-        HotKeyCenter.action = action
+    func register(_ hotkey: Hotkey, slot: UInt32, action: @escaping () -> Void) -> Bool {
+        unregister(slot)
+        HotKeyCenter.actions[slot] = action
+        installHandler()
 
-        if !handlerInstalled {
-            var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                     eventKind: UInt32(kEventHotKeyPressed))
-            InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
-                DispatchQueue.main.async { HotKeyCenter.action?() }
-                return noErr
-            }, 1, &type, nil, nil)
-            handlerInstalled = true
-        }
-
-        let id = EventHotKeyID(signature: OSType(0x5357_4244), id: 1) // "SWBD"
+        var ref: EventHotKeyRef?
+        let id = EventHotKeyID(signature: OSType(0x5357_4244), id: slot) // "SWBD"
         let status = RegisterEventHotKey(hotkey.keyCode, hotkey.modifiers, id,
                                          GetApplicationEventTarget(), 0, &ref)
-        return status == noErr
+        if status == noErr, let ref { refs[slot] = ref; return true }
+        return false
     }
 
-    func unregister() {
-        if let ref { UnregisterEventHotKey(ref) }
-        ref = nil
+    func unregister(_ slot: UInt32) {
+        if let ref = refs.removeValue(forKey: slot) { UnregisterEventHotKey(ref) }
+    }
+
+    private func installHandler() {
+        guard !handlerInstalled else { return }
+        var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
+            var id = EventHotKeyID()
+            GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                              nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
+            let slot = id.id
+            DispatchQueue.main.async { HotKeyCenter.actions[slot]?() }
+            return noErr
+        }, 1, &type, nil, nil)
+        handlerInstalled = true
     }
 }

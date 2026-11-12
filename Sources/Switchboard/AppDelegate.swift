@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var profiles: [Profile] = []
     private var hotkey = Hotkey(Config.defaultHotkey)!
     private var hotkeyOK = true
+    private var sendHotkey = Hotkey(Config.defaultSendHotkey)!
+    private var sendHotkeyOK = true
 
     func applicationWillFinishLaunching(_ note: Notification) {
         // Links arrive as "get URL" Apple events. Registering here (not in didFinish) catches the
@@ -18,9 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSAppleEventManager.shared().setEventHandler(
             self, andSelector: #selector(handleGetURL(_:reply:)),
             forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
-        picker.onChoose = { [weak self] profile, url, learn in
-            if learn, let url { self?.remember(url, in: profile) }
-            self?.open(profile, url: url)
+        picker.onChoose = { [weak self] profile, url, mods in
+            self?.chose(profile, url: url, mods: mods)
         }
         NSApp.mainMenu = Self.mainMenu()
     }
@@ -83,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // `open -a Switchboard --args --picker` shows the picker straight away (handy for scripts).
         if CommandLine.arguments.contains("--picker") { togglePicker() }
         if CommandLine.arguments.contains("--rules") { showEditor() }
+        if CommandLine.arguments.contains("--send") { sendTab() }
     }
 
     // MARK: data
@@ -93,9 +95,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Avatar.clearCache()
 
         hotkey = config.hotkey.flatMap(Hotkey.init) ?? Hotkey(Config.defaultHotkey)!
-        hotkeyOK = hotKeys.register(hotkey) { [weak self] in self?.togglePicker() }
-        NSLog("Switchboard: %d profiles, shortcut %@ %@", profiles.count, hotkey.display,
-              hotkeyOK ? "registered" : "REFUSED (taken by another app?)")
+        hotkeyOK = hotKeys.register(hotkey, slot: 1) { [weak self] in self?.togglePicker() }
+        sendHotkey = config.sendHotkey.flatMap(Hotkey.init) ?? Hotkey(Config.defaultSendHotkey)!
+        sendHotkeyOK = hotKeys.register(sendHotkey, slot: 2) { [weak self] in self?.sendTab() }
+        NSLog("Switchboard: %d profiles, picker %@ %@, send %@ %@", profiles.count,
+              hotkey.display, hotkeyOK ? "registered" : "REFUSED",
+              sendHotkey.display, sendHotkeyOK ? "registered" : "REFUSED")
     }
 
     private func rows() -> [PickerModel.Row] {
@@ -187,6 +192,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSWorkspace.shared.open(LinkLog.url)
     }
 
+    // MARK: send tab
+
+    /// ⌃⌥⇧B: read the front browser's tab and offer to open it in another profile.
+    private func sendTab() {
+        if picker.isVisible { picker.hide(); return }
+        config = (try? Config.load()) ?? config
+        profiles = ProfileDiscovery.all()
+
+        let front = NSWorkspace.shared.frontmostApplication
+        guard let browser = Browser.withBundleID(front?.bundleIdentifier) else {
+            picker.show(rows: rows(), hotkey: sendHotkey.display,
+                        notice: "To send a tab, press \(sendHotkey.display) while Chrome or Edge is in front. Choose a profile to open a new window instead.")
+            return
+        }
+        // AppleScript can wait on the macOS permission prompt, so never on the main thread.
+        Self.scriptQueue.async {
+            let result = ActiveTab.read(browser)
+            DispatchQueue.main.async { self.showSend(result) }
+        }
+    }
+
+    /// One queue for all AppleScript, so scripts never run at the same time.
+    static let scriptQueue = DispatchQueue(label: "switchboard.applescript")
+
+    private func showSend(_ result: Result<ActiveTab, ActiveTab.Failure>) {
+        switch result {
+        case .failure(let failure):
+            LinkLog.write("send: \(failure)")
+            picker.show(rows: rows(), hotkey: sendHotkey.display, notice: failure.description)
+        case .success(let tab):
+            let router = Router(config: config, profiles: profiles)
+            picker.show(rows: rows(), hotkey: sendHotkey.display, link: tab.url,
+                        preselect: try? router.route(tab.url),
+                        sendTab: tab, closesByDefault: config.closeAfterSend ?? false)
+        }
+    }
+
+    /// What happens after a profile is chosen in the picker, in any mode.
+    private func chose(_ profile: Profile, url: URL?, mods: NSEvent.ModifierFlags) {
+        let tab = picker.model.sendTab
+        // ⌘: remember the site for this profile (only when there is a link).
+        if mods.contains(.command), let url, picker.model.link != nil { remember(url, in: profile) }
+        open(profile, url: url)
+
+        guard let tab else { return }
+        // ⌥ flips the closeAfterSend setting for this one send.
+        let close = (config.closeAfterSend ?? false) != mods.contains(.option)
+        LinkLog.write("sent \(tab.url.host ?? "tab") from \(tab.browser.id) → \(profile.ref)\(close ? ", closed original" : "")")
+        if close {
+            // Wait until the new tab exists, so closing the last tab cannot quit-and-relaunch the browser
+            // under the open command.
+            Self.scriptQueue.asyncAfter(deadline: .now() + 0.8) {
+                if case .failure(let f) = tab.close() { LinkLog.write("could not close original tab: \(f)") }
+            }
+        }
+    }
+
     // MARK: picker
 
     private func togglePicker() {
@@ -231,6 +293,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                          action: nil, keyEquivalent: "")
         } else {
             menu.addItem(withTitle: "Shortcut: \(hotkey.display)", action: nil, keyEquivalent: "")
+        }
+        if sendHotkeyOK {
+            menu.addItem(withTitle: "Send front tab to another profile: \(sendHotkey.display)", action: nil, keyEquivalent: "")
+        } else {
+            menu.addItem(withTitle: "⚠︎ \(sendHotkey.display) is taken — set \"sendHotkey\" in the config",
+                         action: nil, keyEquivalent: "")
         }
 
         menu.addItem(.separator())

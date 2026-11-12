@@ -26,6 +26,8 @@ final class EditorModel: ObservableObject {
     @Published var rules: [RuleRow] = []
     @Published var fallback = ""
     @Published var hotkey = ""
+    @Published var sendHotkey = ""
+    @Published var closeAfterSend = false
     @Published var testLink = ""
     @Published var testFrom = ""
     @Published var suggestFor = ""
@@ -47,6 +49,8 @@ final class EditorModel: ObservableObject {
         }
         fallback = config.fallback.flatMap { try? router.profile(named: $0) }?.ref ?? (config.fallback ?? "")
         hotkey = config.hotkey ?? ""
+        sendHotkey = config.sendHotkey ?? ""
+        closeAfterSend = config.closeAfterSend ?? false
         if suggestFor.isEmpty { suggestFor = found.first(where: { $0.browser == .edge })?.ref ?? found.first?.ref ?? "" }
         suggestions = []
         suggestionsLoaded = false
@@ -73,6 +77,9 @@ final class EditorModel: ObservableObject {
         c.fallback = fallback.isEmpty ? nil : target(fallback)
         let h = hotkey.trimmingCharacters(in: .whitespaces)
         c.hotkey = h.isEmpty ? nil : h
+        let sh = sendHotkey.trimmingCharacters(in: .whitespaces)
+        c.sendHotkey = sh.isEmpty ? nil : sh
+        c.closeAfterSend = closeAfterSend ? true : nil
         return c
     }
 
@@ -84,8 +91,10 @@ final class EditorModel: ObservableObject {
 
     var isDirty: Bool { encoded(toConfig()) != saved }
 
-    var hotkeyValid: Bool {
-        hotkey.trimmingCharacters(in: .whitespaces).isEmpty || Hotkey(hotkey) != nil
+    var hotkeyValid: Bool { valid(hotkey) && valid(sendHotkey) }
+
+    func valid(_ s: String) -> Bool {
+        s.trimmingCharacters(in: .whitespaces).isEmpty || Hotkey(s) != nil
     }
 
     func save() {
@@ -243,15 +252,21 @@ struct EditorView: View {
                     }
                     .labelsHidden().frame(width: 200)
                 }
+            }
+            .padding(.top, 4)
+            HStack(spacing: 18) {
                 HStack {
                     Text("Picker shortcut")
                     TextField(Config.defaultHotkey, text: $m.hotkey).frame(width: 150)
-                    if !m.hotkeyValid {
-                        Text("e.g. ctrl+option+b").foregroundColor(.red).font(.system(size: 11))
-                    }
+                        .foregroundColor(m.valid(m.hotkey) ? .primary : .red)
                 }
+                HStack {
+                    Text("Send tab shortcut")
+                    TextField(Config.defaultSendHotkey, text: $m.sendHotkey).frame(width: 170)
+                        .foregroundColor(m.valid(m.sendHotkey) ? .primary : .red)
+                }
+                Toggle("Close the tab after sending", isOn: $m.closeAfterSend)
             }
-            .padding(.top, 4)
         }
     }
 

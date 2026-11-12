@@ -4,7 +4,7 @@ Open every link in the right browser profile, and switch between profiles with a
 
 If you keep a personal Chrome, a work Chrome, a project Chrome and an Edge for school or Microsoft 365, links keep opening in the wrong one. A Canvas link lands in your personal Google account; a SharePoint file asks you to sign in again. Switchboard sits between your apps and your browsers and sends each link where it belongs.
 
-**Status:** milestone 4 of 5. Set Switchboard as your default browser and every link you click is routed by rule; ⌃⌥B switches profiles; rules are edited in a window or learned from your clicks. Sending an open tab to another profile comes next — see [PLAN.md](PLAN.md).
+**Status:** all five milestones are built. Set Switchboard as your default browser and every link you click is routed by rule; ⌃⌥B switches profiles; ⌃⌥⇧B sends the tab you are looking at to another profile; rules are edited in a window or learned from your clicks. See [PLAN.md](PLAN.md) for what may come later.
 
 ---
 
@@ -19,6 +19,7 @@ If you keep a personal Chrome, a work Chrome, a project Chrome and an Edge for s
 - **Sees through redirect wrappers.** Outlook Safe Links, Google, Facebook, Instagram, LinkedIn and Slack redirects are matched by their real destination. The original link is still opened, so Safe Links scanning keeps working.
 - **Lets you choose when you want to.** Hold **⌥** while clicking a link to pick the profile yourself. A link that no rule covers (and no fallback) also asks.
 - **Learns.** In that picker, **⌘↩** (or ⌘1–9) opens the link *and* remembers: "always open this site here".
+- **Sends a tab to another profile.** Opened in the wrong account? Press **⌃⌥⇧B** in Chrome or Edge and pick where it should be. **⌥↩** also closes the original.
 - **Has a rules editor.** Aliases, rules in order, fallback, shortcut, a live "test a link" box, and suggestions from a profile's bookmarks.
 
 Everything is local. Switchboard reads files your browsers already keep and starts them with `open`; it does not touch cookies, passwords or history.
@@ -66,11 +67,27 @@ Click the branch icon in the menu bar, or press **⌃⌥B**.
 
 In the menu, hold ⇧ while choosing a profile to open the clipboard link there. If the menu bar icon is hidden behind the camera notch, the shortcut still works; ⌘-drag menu bar icons to make room.
 
+### Send a tab to another profile
+
+With Chrome or Edge in front, press **⌃⌥⇧B**. The picker shows the tab's title, with the profile your rules would choose already selected.
+
+| Key | Does |
+|---|---|
+| ↩ or 1–9 | open the tab's address in that profile; the original stays open |
+| ⌥↩ or ⌥1–9 | the same, and close the original tab |
+| ⌘↩ | also remember: this site always opens in that profile |
+
+Turn on *Close the tab after sending* in the rules editor (or `"closeAfterSend": true`) to make closing the default; ⌥ then keeps the original instead. The shortcut is `"sendHotkey"` in the config.
+
+The first time, macOS asks whether Switchboard may control Chrome (and, separately, Edge). Switchboard uses this only to read the address and title of the front tab and to close that tab when you ask. To change your answer: System Settings → Privacy & Security → Automation → Switchboard. Because the app is signed ad hoc, macOS may ask again after you rebuild it.
+
+Only the address moves to the other profile: the page reloads there, so anything typed into a form but not saved stays in the original tab. Keep it open (the default) if that matters.
+
 ### Rules editor
 
 Menu bar icon → **Edit Rules…** (⌘, while the menu is open).
 
-- **Profiles:** set short names (aliases), the profile for anything no rule covers, and the picker shortcut.
+- **Profiles:** set short names (aliases), the profile for anything no rule covers, the picker and send-tab shortcuts, and whether sending closes the original.
 - **Rules:** site and/or app, and the profile it opens in. Reorder with the arrows; the first rule that fits wins. A rule with neither a site nor an app is flagged, as it never matches.
 - **Test a link:** paste any link (and optionally an app) to see where it would go with the rules on screen, saved or not.
 - **Suggest rules from bookmarks:** pick a profile and *Find Sites*. You get the sites bookmarked there that currently open somewhere else; tick the ones that belong and *Add Rules*. New rules go after your other site rules and before app-only rules.
@@ -144,7 +161,7 @@ Chrome and Edge are both Chromium. Each keeps a `Local State` file in `~/Library
 ```
 Sources/SwitchboardCore/   profile discovery, config, router, launcher
 Sources/sb/                the command line tool
-Sources/Switchboard/       menu bar app: status menu, picker, global hotkey, link handling, rules editor
+Sources/Switchboard/       menu bar app: status menu, picker, global hotkeys, link handling, send tab, rules editor
 App/Info.plist             app bundle metadata (menu bar only, no Dock icon)
 Tests/selftest.swift       checks, run with scripts/test.sh
 scripts/build.sh           swiftc-only build of sb and Switchboard.app (no Xcode needed)
@@ -158,7 +175,7 @@ scripts/build.sh           swiftc-only build of sb and Switchboard.app (no Xcode
 2. ✅ Menu bar switcher with a global hotkey
 3. ✅ Default-browser router app (rules by domain, by source app, and a modifier key for "ask me")
 4. ✅ Rules editor and "always open this site here"
-5. Send the current tab to another profile
+5. ✅ Send the current tab to another profile
 
 Other browsers (Brave, Arc, Vivaldi, Firefox containers) may follow.
 

@@ -28,15 +28,22 @@ public struct Config: Codable {
     public var fallback: String?
     /// Global shortcut for the picker, e.g. "ctrl+option+b". Nil means the default.
     public var hotkey: String?
+    /// Global shortcut for "send this tab to another profile". Nil means the default.
+    public var sendHotkey: String?
+    /// When sending a tab, close the original. Off by default: the copy is safer.
+    public var closeAfterSend: Bool?
 
     public static let defaultHotkey = "ctrl+option+b"
+    public static let defaultSendHotkey = "ctrl+option+shift+b"
 
     public init(aliases: [String: String] = [:], rules: [Rule] = [], fallback: String? = nil,
-                hotkey: String? = nil) {
+                hotkey: String? = nil, sendHotkey: String? = nil, closeAfterSend: Bool? = nil) {
         self.aliases = aliases
         self.rules = rules
         self.fallback = fallback
         self.hotkey = hotkey
+        self.sendHotkey = sendHotkey
+        self.closeAfterSend = closeAfterSend
     }
 
     /// Aliases that point at `profile`, sorted.

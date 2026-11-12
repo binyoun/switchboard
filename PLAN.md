@@ -44,8 +44,12 @@ One place to (a) jump to any browser profile and (b) have every clicked link ope
 - Bookmark suggestions: hosts bookmarked in a profile that currently route elsewhere; picked ones are inserted after host rules, before app-only rules. Also `sb suggest`.
 - A hidden main menu gives text fields ⌘C/⌘V/⌘A/⌘Z and windows ⌘W in a menu-bar-only app.
 
-### 5. Handoff
-- Hotkey: send the current tab to another profile (read the active tab URL via AppleScript for Chrome and Edge, then reopen it in the target profile).
+### 5. Send tab ✅
+- Second global shortcut (default ⌃⌥⇧B, `sendHotkey`); HotKeyCenter now holds several shortcuts by id.
+- Reads the frontmost Chrome/Edge window's active tab (URL, title, window id, tab id) with NSAppleScript on a background queue, so a pending permission prompt never freezes the app. `NSAppleEventsUsageDescription` explains the prompt.
+- Picker in send mode: tab title in the header, routed profile preselected. ↩ copies, ⌥↩ also closes the original by `tab id … of window id …` (after a short delay, once the new tab exists). `closeAfterSend` flips the default.
+- Not a browser in front, no window, or permission refused: the picker explains and still works as a switcher.
+- Fixed: ⇧/⌥ + digit in the picker now matched by key code (⇧1 arrives as "!").
 
 ## Known hard parts
 

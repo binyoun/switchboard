@@ -92,6 +92,15 @@ let marks = Bookmarks.parse("""
 """.data(using: .utf8)!)
 check(marks == ["uni.instructure.com": 2, "github.com": 1], "bookmark hosts counted, non-web links skipped")
 
+// Active tab
+let tab = ActiveTab.parse("https://docs.google.com/d/1\n1234\n5678\nMy doc\nsecond line", browser: .chrome)
+check(tab?.url.host == "docs.google.com" && tab?.windowID == "1234" && tab?.tabID == "5678", "tab fields")
+check(tab?.title == "My doc\nsecond line", "titles may contain newlines")
+check(ActiveTab.parse("", browser: .chrome) == nil, "no window")
+check(ActiveTab.readScript(.edge).contains("tell application \"Microsoft Edge\""), "script targets the browser")
+check(Browser.withBundleID("com.microsoft.edgemac") == .edge, "browser by bundle ID")
+check(Hotkey(Config.defaultSendHotkey)?.display == "⌃⌥⇧B", "send shortcut")
+
 // Hotkeys
 check(Hotkey("ctrl+option+b")?.keyCode == 11, "hotkey key code")
 check(Hotkey("ctrl+option+b")?.display == "⌃⌥B", "hotkey display")

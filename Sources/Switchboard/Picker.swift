@@ -17,6 +17,12 @@ final class PickerModel: ObservableObject {
     @Published var clipboardURL: URL?
     /// A clicked link waiting for a profile (⌥-click, or no rule matched).
     @Published var link: URL?
+    /// The browser tab being sent to another profile (send mode).
+    @Published var sendTab: ActiveTab?
+    /// True when ⌥↩ keeps the tab rather than closing it (closeAfterSend is on).
+    @Published var closesByDefault = false
+    /// A problem to explain above the list, e.g. no browser tab in front.
+    @Published var notice: String?
 
     var filtered: [Row] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -41,9 +47,20 @@ struct PickerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let notice = model.notice {
+                Text(notice)
+                    .font(.system(size: 12))
+                    .foregroundColor(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 14)
+            }
             if let link = model.link {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Open \(Unwrap.destination(of: link).host ?? "link") in…")
+                    Text(model.sendTab.map { "Send “\($0.title.isEmpty ? ($0.url.host ?? "tab") : $0.title)” from \($0.browser.name) to…" }
+                         ?? "Open \(Unwrap.destination(of: link).host ?? "link") in…")
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                         .font(.system(size: 13, weight: .semibold))
                     Text(link.absoluteString)
                         .font(.system(size: 11))
@@ -82,6 +99,9 @@ struct PickerView: View {
             HStack(spacing: 14) {
                 Text("↩ open")
                 Text("1–9 jump")
+                if model.sendTab != nil {
+                    Text(model.closesByDefault ? "⌥↩ send, keep tab" : "⌥↩ send and close tab")
+                }
                 if let link = model.link {
                     Text("⌘↩ always open \(Unwrap.destination(of: link).host ?? "this site") here")
                         .lineLimit(1)
@@ -172,16 +192,20 @@ final class PickerController {
     private var panel: PickerPanel?
     private var keyMonitor: Any?
     private var resignObserver: Any?
-    /// The chosen profile, the link to open (if any), and whether to remember the site.
-    var onChoose: ((Profile, URL?, Bool) -> Void)?
+    /// The chosen profile, the link to open (if any), and the modifier keys held.
+    var onChoose: ((Profile, URL?, NSEvent.ModifierFlags) -> Void)?
 
     var isVisible: Bool { panel?.isVisible ?? false }
 
-    func show(rows: [PickerModel.Row], hotkey: String, link: URL? = nil, preselect: Profile? = nil) {
+    func show(rows: [PickerModel.Row], hotkey: String, link: URL? = nil, preselect: Profile? = nil,
+              sendTab: ActiveTab? = nil, closesByDefault: Bool = false, notice: String? = nil) {
         model.rows = rows
         model.query = ""
         model.selected = preselect.flatMap { p in rows.firstIndex { $0.profile == p } } ?? 0
         model.link = link
+        model.sendTab = sendTab
+        model.closesByDefault = closesByDefault
+        model.notice = notice
         model.clipboardURL = link == nil ? Self.clipboardURL() : nil
 
         let panel = self.panel ?? makePanel()
@@ -205,9 +229,8 @@ final class PickerController {
 
     private func choose(_ p: Profile, _ mods: NSEvent.ModifierFlags) {
         let url = model.link ?? (mods.contains(.shift) ? model.clipboardURL : nil)
-        let learn = model.link != nil && mods.contains(.command)
         hide(returnFocus: false)
-        onChoose?(p, url, learn)
+        onChoose?(p, url, mods)
     }
 
     private func makePanel() -> PickerPanel {
@@ -250,8 +273,8 @@ final class PickerController {
                 }
                 return nil
             default:
-                if let c = e.charactersIgnoringModifiers, let n = Int(c), (1...9).contains(n),
-                   rows.indices.contains(n - 1) {
+                // By key code, not character: with ⇧ held, "1" arrives as "!".
+                if let n = Self.digitKeys[e.keyCode], rows.indices.contains(n - 1) {
                     self.choose(rows[n - 1].profile, e.modifierFlags)
                     return nil
                 }
@@ -264,6 +287,12 @@ final class PickerController {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
     }
+
+    /// Key codes of the 1–9 keys on the main row and the keypad.
+    static let digitKeys: [UInt16: Int] = [
+        18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9,
+        83: 1, 84: 2, 85: 3, 86: 4, 87: 5, 88: 6, 89: 7, 91: 8, 92: 9,
+    ]
 
     static func clipboardURL() -> URL? {
         guard let s = NSPasteboard.general.string(forType: .string)?
