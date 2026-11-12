@@ -37,7 +37,7 @@ final class PickerModel: ObservableObject {
 struct PickerView: View {
     @ObservedObject var model: PickerModel
     let hotkey: String
-    let choose: (Profile, Bool) -> Void
+    let choose: (Profile, NSEvent.ModifierFlags) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -72,7 +72,7 @@ struct PickerView: View {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
                     RowView(row: row, index: i, selected: i == model.selected)
                         .contentShape(Rectangle())
-                        .onTapGesture { choose(row.profile, NSEvent.modifierFlags.contains(.shift)) }
+                        .onTapGesture { choose(row.profile, NSEvent.modifierFlags) }
                         .onHover { if $0 { model.selected = i } }
                 }
             }
@@ -82,6 +82,11 @@ struct PickerView: View {
             HStack(spacing: 14) {
                 Text("↩ open")
                 Text("1–9 jump")
+                if let link = model.link {
+                    Text("⌘↩ always open \(Unwrap.destination(of: link).host ?? "this site") here")
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
                 if model.link == nil, let url = model.clipboardURL {
                     Text("⇧↩ open \(url.host ?? "link")")
                         .lineLimit(1)
@@ -167,7 +172,8 @@ final class PickerController {
     private var panel: PickerPanel?
     private var keyMonitor: Any?
     private var resignObserver: Any?
-    var onChoose: ((Profile, URL?) -> Void)?
+    /// The chosen profile, the link to open (if any), and whether to remember the site.
+    var onChoose: ((Profile, URL?, Bool) -> Void)?
 
     var isVisible: Bool { panel?.isVisible ?? false }
 
@@ -180,8 +186,8 @@ final class PickerController {
 
         let panel = self.panel ?? makePanel()
         self.panel = panel
-        panel.contentView = NSHostingView(rootView: PickerView(model: model, hotkey: hotkey) { [weak self] p, shift in
-            self?.choose(p, shift: shift)
+        panel.contentView = NSHostingView(rootView: PickerView(model: model, hotkey: hotkey) { [weak self] p, mods in
+            self?.choose(p, mods)
         })
         panel.setContentSize(panel.contentView!.fittingSize)
         position(panel)
@@ -197,10 +203,11 @@ final class PickerController {
         if returnFocus { NSApp.hide(nil) }
     }
 
-    private func choose(_ p: Profile, shift: Bool) {
-        let url = model.link ?? (shift ? model.clipboardURL : nil)
+    private func choose(_ p: Profile, _ mods: NSEvent.ModifierFlags) {
+        let url = model.link ?? (mods.contains(.shift) ? model.clipboardURL : nil)
+        let learn = model.link != nil && mods.contains(.command)
         hide(returnFocus: false)
-        onChoose?(p, url)
+        onChoose?(p, url, learn)
     }
 
     private func makePanel() -> PickerPanel {
@@ -239,13 +246,13 @@ final class PickerController {
             case 126: self.model.move(-1); return nil              // ↑
             case 36, 76:                                           // ↩, enter
                 if rows.indices.contains(self.model.selected) {
-                    self.choose(rows[self.model.selected].profile, shift: e.modifierFlags.contains(.shift))
+                    self.choose(rows[self.model.selected].profile, e.modifierFlags)
                 }
                 return nil
             default:
                 if let c = e.charactersIgnoringModifiers, let n = Int(c), (1...9).contains(n),
                    rows.indices.contains(n - 1) {
-                    self.choose(rows[n - 1].profile, shift: e.modifierFlags.contains(.shift))
+                    self.choose(rows[n - 1].profile, e.modifierFlags)
                     return nil
                 }
                 return e

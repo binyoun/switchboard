@@ -37,10 +37,12 @@ One place to (a) jump to any browser profile and (b) have every clicked link ope
 - `~/Library/Logs/Switchboard.log`: one line per link with host, source app, profile and deciding rule. Hosts only, no full URLs.
 - The config is re-read on every link.
 
-### 4. Rules editor and learning
-- Settings window: aliases, rules (drag to reorder), fallback, hotkey.
-- When the picker is shown for a host with no rule: "Always open *host* here" writes the rule.
-- Import hosts from a profile's bookmarks as suggested rules.
+### 4. Rules editor and learning ✅
+- SwiftUI window (Edit Rules…): aliases per profile, fallback ("Ask me" = no fallback), hotkey with validation, rules with site / app / profile, ↑↓ to reorder, rules that can never match flagged. Edits stay in memory until Save; Revert reloads.
+- Live "Test a link" using the unsaved rules, with optional source app.
+- Picker learning: ⌘↩ / ⌘1–9 on a clicked link writes an exact-host rule at the top (replacing any host-only rule for that host) and opens the link.
+- Bookmark suggestions: hosts bookmarked in a profile that currently route elsewhere; picked ones are inserted after host rules, before app-only rules. Also `sb suggest`.
+- A hidden main menu gives text fields ⌘C/⌘V/⌘A/⌘Z and windows ⌘W in a menu-bar-only app.
 
 ### 5. Handoff
 - Hotkey: send the current tab to another profile (read the active tab URL via AppleScript for Chrome and Edge, then reopen it in the target profile).

@@ -11,6 +11,8 @@ sb — open links in the right browser profile
                            show where url would go, without opening it
                            (--from: bundle ID or app name the link was clicked in)
   sb rules                 list rules in order
+  sb suggest <profile>     sites bookmarked in a profile that open elsewhere
+                           (--add host,host… adds rules for them)
   sb init                  write a starter config from the profiles found
 
 <profile> is an alias (school), a ref (edge:Default), a profile name or an email.
@@ -78,6 +80,28 @@ do {
         if config.rules.isEmpty { print("No rules yet. Run `sb init` or edit \(Config.defaultURL.path)") }
         for (i, r) in config.rules.enumerated() { print("\(i + 1). \(r.display) → \(r.open)") }
         print("   anything else → \(config.fallback ?? "(no fallback)")")
+
+    case "suggest":
+        guard args.count >= 2 else { fail("usage: sb suggest <profile> [--add host,host…]") }
+        let p = try router.profile(named: args[1])
+        if let i = args.firstIndex(of: "--add"), args.count > i + 1 {
+            var c = config
+            let hosts = args[i + 1].split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
+            c.addHostRules(hosts, open: c.name(for: p))
+            try c.save()
+            print("Added \(c.rules.count - config.rules.count) rule(s) → \(c.name(for: p))")
+            break
+        }
+        let found = Bookmarks.hosts(for: p)
+            .filter { host, _ in (try? router.route(url(host)))?.ref != p.ref }
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+        if found.isEmpty { print("Every site bookmarked in \(p.name) already opens there.") }
+        for (host, n) in found.prefix(40) {
+            let now = (try? router.route(url(host)))?.name ?? "?"
+            print("\(String(n).padding(toLength: 4, withPad: " ", startingAt: 0))\(host.padding(toLength: 40, withPad: " ", startingAt: 0))now → \(now)")
+        }
+        if found.count > 40 { print("… and \(found.count - 40) more") }
+        if !found.isEmpty { print("\nAdd some: sb suggest \(args[1]) --add host1,host2") }
 
     case "init":
         let path = Config.defaultURL

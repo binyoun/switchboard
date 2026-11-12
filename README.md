@@ -4,7 +4,7 @@ Open every link in the right browser profile, and switch between profiles with a
 
 If you keep a personal Chrome, a work Chrome, a project Chrome and an Edge for school or Microsoft 365, links keep opening in the wrong one. A Canvas link lands in your personal Google account; a SharePoint file asks you to sign in again. Switchboard sits between your apps and your browsers and sends each link where it belongs.
 
-**Status:** milestone 3 of 5. Set Switchboard as your default browser and every link you click is routed by rule; ⌃⌥B switches profiles; `sb` does both from the terminal. A rules editor comes next — see [PLAN.md](PLAN.md).
+**Status:** milestone 4 of 5. Set Switchboard as your default browser and every link you click is routed by rule; ⌃⌥B switches profiles; rules are edited in a window or learned from your clicks. Sending an open tab to another profile comes next — see [PLAN.md](PLAN.md).
 
 ---
 
@@ -18,6 +18,8 @@ If you keep a personal Chrome, a work Chrome, a project Chrome and an Edge for s
 - **Knows where the link came from.** A rule can say "links clicked in Teams open in Edge", on its own or together with a host.
 - **Sees through redirect wrappers.** Outlook Safe Links, Google, Facebook, Instagram, LinkedIn and Slack redirects are matched by their real destination. The original link is still opened, so Safe Links scanning keeps working.
 - **Lets you choose when you want to.** Hold **⌥** while clicking a link to pick the profile yourself. A link that no rule covers (and no fallback) also asks.
+- **Learns.** In that picker, **⌘↩** (or ⌘1–9) opens the link *and* remembers: "always open this site here".
+- **Has a rules editor.** Aliases, rules in order, fallback, shortcut, a live "test a link" box, and suggestions from a profile's bookmarks.
 
 Everything is local. Switchboard reads files your browsers already keep and starts them with `open`; it does not touch cookies, passwords or history.
 
@@ -59,9 +61,21 @@ Click the branch icon in the menu bar, or press **⌃⌥B**.
 | ↑ ↓ | move |
 | ↩ or 1–9 | open a new window in that profile |
 | ⇧↩ or ⇧1–9 | open the link on your clipboard in that profile |
+| ⌘↩ or ⌘1–9 | when the picker came from a clicked link: open it and always send that site to this profile |
 | esc | close |
 
 In the menu, hold ⇧ while choosing a profile to open the clipboard link there. If the menu bar icon is hidden behind the camera notch, the shortcut still works; ⌘-drag menu bar icons to make room.
+
+### Rules editor
+
+Menu bar icon → **Edit Rules…** (⌘, while the menu is open).
+
+- **Profiles:** set short names (aliases), the profile for anything no rule covers, and the picker shortcut.
+- **Rules:** site and/or app, and the profile it opens in. Reorder with the arrows; the first rule that fits wins. A rule with neither a site nor an app is flagged, as it never matches.
+- **Test a link:** paste any link (and optionally an app) to see where it would go with the rules on screen, saved or not.
+- **Suggest rules from bookmarks:** pick a profile and *Find Sites*. You get the sites bookmarked there that currently open somewhere else; tick the ones that belong and *Add Rules*. New rules go after your other site rules and before app-only rules.
+
+Nothing is written until **Save** (⌘S). *Open Config File* opens the JSON in a text editor.
 
 ### Command line
 
@@ -82,6 +96,8 @@ sb route https://uni-my.sharepoint.com/…   # where would this go? (does not op
 sb route github.com --from com.microsoft.teams2   # …if clicked in Teams
 sb go https://uni-my.sharepoint.com/…      # open it there
 sb rules                         # list rules in order
+sb suggest school                # bookmarked sites in that profile that open elsewhere
+sb suggest school --add canvas.uni.edu,library.uni.edu   # add rules for some
 ```
 
 A profile can be named by alias (`school`), ref (`edge:Default`), the name shown in the browser, or the signed-in email.
@@ -128,7 +144,7 @@ Chrome and Edge are both Chromium. Each keeps a `Local State` file in `~/Library
 ```
 Sources/SwitchboardCore/   profile discovery, config, router, launcher
 Sources/sb/                the command line tool
-Sources/Switchboard/       menu bar app: status menu, picker panel, global hotkey
+Sources/Switchboard/       menu bar app: status menu, picker, global hotkey, link handling, rules editor
 App/Info.plist             app bundle metadata (menu bar only, no Dock icon)
 Tests/selftest.swift       checks, run with scripts/test.sh
 scripts/build.sh           swiftc-only build of sb and Switchboard.app (no Xcode needed)
@@ -141,7 +157,7 @@ scripts/build.sh           swiftc-only build of sb and Switchboard.app (no Xcode
 1. ✅ Profile discovery and `sb` CLI
 2. ✅ Menu bar switcher with a global hotkey
 3. ✅ Default-browser router app (rules by domain, by source app, and a modifier key for "ask me")
-4. Rules editor and "always open this site here"
+4. ✅ Rules editor and "always open this site here"
 5. Send the current tab to another profile
 
 Other browsers (Brave, Arc, Vivaldi, Firefox containers) may follow.

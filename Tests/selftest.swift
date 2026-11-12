@@ -74,6 +74,24 @@ check(try byApp.route(URL(string: "https://docs.google.com/d/1")!, from: teams).
 check(Rule(from: "x", open: "y").display == "from x", "rule display")
 check(byApp.matchingRule(for: URL(string: "file:///tmp/a.html")!) == nil, "file links have no host")
 
+// Learning
+var learned = Config(rules: [Rule(match: "a.com", open: "x"), Rule(from: "Teams", open: "school")])
+learned.learn(host: "A.com", open: "y")
+check(learned.rules.count == 2 && learned.rules[0] == Rule(match: "a.com", open: "y"), "learn replaces and goes first")
+learned.addHostRules(["b.com", "a.com"], open: "z")
+check(learned.rules.map(\.display) == ["a.com", "b.com", "from Teams"], "added host rules go before app-only rules, no duplicates")
+check(config.name(for: edge) == "school", "rule target uses the alias")
+check(Config().name(for: edge) == "edge:Default", "…or the ref")
+
+// Bookmarks
+let marks = Bookmarks.parse("""
+{"roots":{"bookmark_bar":{"type":"folder","children":[
+  {"type":"url","url":"https://uni.instructure.com/courses/1"},
+  {"type":"folder","children":[{"type":"url","url":"https://uni.instructure.com/x"},{"type":"url","url":"javascript:void(0)"}]},
+  {"type":"url","url":"https://GitHub.com/"}]},"other":{"type":"folder","children":[]}},"version":1}
+""".data(using: .utf8)!)
+check(marks == ["uni.instructure.com": 2, "github.com": 1], "bookmark hosts counted, non-web links skipped")
+
 // Hotkeys
 check(Hotkey("ctrl+option+b")?.keyCode == 11, "hotkey key code")
 check(Hotkey("ctrl+option+b")?.display == "⌃⌥B", "hotkey display")

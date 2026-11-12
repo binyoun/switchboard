@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let hotKeys = HotKeyCenter()
     private let picker = PickerController()
+    private let editor = EditorWindowController()
     private var config = Config()
     private var profiles: [Profile] = []
     private var hotkey = Hotkey(Config.defaultHotkey)!
@@ -17,7 +18,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSAppleEventManager.shared().setEventHandler(
             self, andSelector: #selector(handleGetURL(_:reply:)),
             forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
-        picker.onChoose = { [weak self] profile, url in self?.open(profile, url: url) }
+        picker.onChoose = { [weak self] profile, url, learn in
+            if learn, let url { self?.remember(url, in: profile) }
+            self?.open(profile, url: url)
+        }
+        NSApp.mainMenu = Self.mainMenu()
+    }
+
+    /// Hidden for a menu bar app, but it gives text fields ⌘X ⌘C ⌘V ⌘A ⌘Z and windows ⌘W.
+    private static func mainMenu() -> NSMenu {
+        let main = NSMenu()
+        let appItem = NSMenuItem()
+        appItem.submenu = NSMenu()
+        appItem.submenu?.addItem(withTitle: "Quit Switchboard", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        main.addItem(appItem)
+
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        let editItem = NSMenuItem()
+        editItem.submenu = edit
+        main.addItem(editItem)
+
+        let window = NSMenu(title: "Window")
+        window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        let windowItem = NSMenuItem()
+        windowItem.submenu = window
+        main.addItem(windowItem)
+        return main
+    }
+
+    /// "Always open this site here", from ⌘↩ in the picker.
+    private func remember(_ url: URL, in profile: Profile) {
+        guard let host = Unwrap.destination(of: url).host else { return }
+        var c = (try? Config.load()) ?? config
+        c.learn(host: host, open: c.name(for: profile))
+        do {
+            try c.save()
+            config = c
+            LinkLog.write("learned \(host) → \(profile.ref)")
+        } catch {
+            LinkLog.write("could not save rule for \(host): \(error)")
+        }
     }
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -35,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // `open -a Switchboard --args --picker` shows the picker straight away (handy for scripts).
         if CommandLine.arguments.contains("--picker") { togglePicker() }
+        if CommandLine.arguments.contains("--rules") { showEditor() }
     }
 
     // MARK: data
@@ -193,7 +241,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             add(menu, "Make Default Browser…", #selector(makeDefaultBrowser))
         }
-        add(menu, "Edit Rules…", #selector(editConfig))
+        add(menu, "Edit Rules…", #selector(showEditor), key: ",")
+        add(menu, "Edit Config File…", #selector(editConfig))
         add(menu, "Show Link Log", #selector(showLog))
         add(menu, "Reload", #selector(reloadAction))
         let login = add(menu, "Open at Login", #selector(toggleLogin))
@@ -236,6 +285,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showPicker() { togglePicker() }
 
     @objc private func reloadAction() { reload() }
+
+    @objc private func showEditor() {
+        editor.show(onSaved: { [weak self] in self?.reload() },
+                    openFile: { [weak self] in self?.editConfig() })
+    }
 
     @objc private func editConfig() {
         let url = Config.defaultURL
