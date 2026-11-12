@@ -12,6 +12,25 @@ public enum RouteError: Error, CustomStringConvertible {
     }
 }
 
+/// The app a link was clicked in.
+public struct Source: Equatable {
+    public let bundleID: String?
+    public let name: String?
+
+    public init(bundleID: String?, name: String?) {
+        self.bundleID = bundleID
+        self.name = name
+    }
+
+    /// `pattern` is a bundle ID (com.microsoft.teams2) or an app name (Microsoft Teams), any case.
+    public func matches(_ pattern: String) -> Bool {
+        let p = pattern.lowercased()
+        return bundleID?.lowercased() == p || name?.lowercased() == p
+    }
+
+    public var display: String { name ?? bundleID ?? "unknown app" }
+}
+
 public struct Router {
     public let config: Config
     public let profiles: [Profile]
@@ -32,14 +51,24 @@ public struct Router {
         throw RouteError.unknownProfile(key)
     }
 
-    /// The rule that decides `url`, or nil when the fallback applies.
-    public func matchingRule(for url: URL) -> Rule? {
-        guard let host = url.host?.lowercased() else { return nil }
-        return config.rules.first { Router.host(host, matches: $0.match) }
+    /// The first rule whose every condition holds: `match` against the link's real host
+    /// (after unwrapping redirects) and `from` against the app the link came from.
+    public func matchingRule(for url: URL, from source: Source? = nil) -> Rule? {
+        let host = Unwrap.destination(of: url).host?.lowercased()
+        return config.rules.first { rule in
+            if rule.match == nil && rule.from == nil { return false }
+            if let m = rule.match {
+                guard let host, Router.host(host, matches: m) else { return false }
+            }
+            if let f = rule.from {
+                guard let source, source.matches(f) else { return false }
+            }
+            return true
+        }
     }
 
-    public func route(_ url: URL) throws -> Profile {
-        if let rule = matchingRule(for: url) { return try profile(named: rule.open) }
+    public func route(_ url: URL, from source: Source? = nil) throws -> Profile {
+        if let rule = matchingRule(for: url, from: source) { return try profile(named: rule.open) }
         if let fb = config.fallback { return try profile(named: fb) }
         throw RouteError.noRoute(url.absoluteString)
     }

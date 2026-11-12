@@ -49,6 +49,31 @@ let p = Profile(browser: .edge, directory: "Profile 3", name: "x", email: nil)
 check(Launcher.arguments(for: p, url: URL(string: "https://a.b")) ==
       ["-na", "Microsoft Edge", "--args", "--profile-directory=Profile 3", "https://a.b"], "open arguments")
 
+// Unwrapping redirects
+let safe = URL(string: "https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Funi.instructure.com%2Fcourses%2F1&data=x")!
+check(Unwrap.destination(of: safe).host == "uni.instructure.com", "Outlook Safe Links")
+check(Unwrap.destination(of: URL(string: "https://www.google.com/url?q=https://github.com/x&sa=D")!).host == "github.com", "Google redirect")
+check(Unwrap.destination(of: URL(string: "https://l.facebook.com/l.php?u=https%3A%2F%2Fexample.org%2F")!).host == "example.org", "Facebook redirect")
+check(Unwrap.destination(of: URL(string: "https://www.google.com/search?q=https://x.y")!).host == "www.google.com", "a search is not a redirect")
+check(Unwrap.destination(of: URL(string: "https://github.com")!).host == "github.com", "plain link unchanged")
+check(try r.route(safe) == edge, "wrapped link routes by its real host")
+
+// Rules by source app
+let teams = Source(bundleID: "com.microsoft.teams2", name: "Microsoft Teams")
+let byApp = Router(config: Config(
+    aliases: ["school": "edge:Default", "personal": "chrome:Default", "work": "chrome:Profile 2"],
+    rules: [Rule(match: "github.com", from: "Microsoft Teams", open: "work"),
+            Rule(match: "*.google.com", open: "personal"),
+            Rule(from: "com.microsoft.teams2", open: "school")],
+    fallback: "personal"), profiles: chrome + [edge])
+check(try byApp.route(URL(string: "https://example.org")!, from: teams) == edge, "from-only rule by bundle ID")
+check(try byApp.route(URL(string: "https://example.org")!).directory == "Default", "from rule needs a source")
+check(try byApp.route(URL(string: "https://github.com")!, from: teams).directory == "Profile 2", "match + from, by app name")
+check(try byApp.route(URL(string: "https://github.com")!).directory == "Default", "match + from needs both")
+check(try byApp.route(URL(string: "https://docs.google.com/d/1")!, from: teams).directory == "Default", "earlier rule wins")
+check(Rule(from: "x", open: "y").display == "from x", "rule display")
+check(byApp.matchingRule(for: URL(string: "file:///tmp/a.html")!) == nil, "file links have no host")
+
 // Hotkeys
 check(Hotkey("ctrl+option+b")?.keyCode == 11, "hotkey key code")
 check(Hotkey("ctrl+option+b")?.display == "⌃⌥B", "hotkey display")

@@ -28,12 +28,14 @@ One place to (a) jump to any browser profile and (b) have every clicked link ope
 - Open at Login through `SMAppService`; *Edit Rules…* opens the config as text.
 - `scripts/build.sh install` bundles, ad-hoc signs and installs to ~/Applications.
 
-### 3. Default-browser router
-- `Info.plist` with `CFBundleURLTypes` (http, https) and `public.html` document types; a button to make Switchboard the default browser.
-- On `open URL`: apply rules, open in the matched profile, and return within ~100 ms.
-- Rules by **source app** (links clicked in Teams → school) using the sender of the Apple event.
-- Hold **⌥** while clicking to show the picker instead.
-- Strip common tracking wrappers (Outlook Safe Links, Google redirect) before matching, so the real host decides.
+### 3. Default-browser router ✅
+- `Info.plist` claims http/https (`CFBundleURLTypes`) and `public.html`/`public.xhtml`; the install script runs `lsregister`. *Make Default Browser…* calls `NSWorkspace.setDefaultApplication`, which shows the macOS confirmation.
+- Links arrive as `kAEGetURL` Apple events (handler installed in `applicationWillFinishLaunching`, so the launching link is caught too); `.html` files through `application(_:open:)`.
+- Rules gain `from`: the sender PID of the Apple event → `NSRunningApplication` → bundle ID and name. A rule with `match` and `from` needs both.
+- Hold **⌥** while clicking to show the picker with the link (the routed profile preselected). No rule and no fallback, or a rule naming a missing profile, also shows the picker.
+- Redirect wrappers (Outlook Safe Links, Google `/url`, Facebook, Instagram, LinkedIn, Slack) are unwrapped for matching only; the original link is opened.
+- `~/Library/Logs/Switchboard.log`: one line per link with host, source app, profile and deciding rule. Hosts only, no full URLs.
+- The config is re-read on every link.
 
 ### 4. Rules editor and learning
 - Settings window: aliases, rules (drag to reorder), fallback, hotkey.

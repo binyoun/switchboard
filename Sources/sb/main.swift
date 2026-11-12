@@ -7,7 +7,9 @@ sb — open links in the right browser profile
   sb profiles              list Chrome and Edge profiles, with aliases
   sb open <profile> [url]  open a window (or url) in a profile
   sb go <url>              open url wherever the rules send it
-  sb route <url>           show where url would go, without opening it
+  sb route <url> [--from <app>]
+                           show where url would go, without opening it
+                           (--from: bundle ID or app name the link was clicked in)
   sb rules                 list rules in order
   sb init                  write a starter config from the profiles found
 
@@ -60,15 +62,21 @@ do {
         try Launcher.open(try router.route(u), url: u)
 
     case "route":
-        guard args.count >= 2 else { fail("usage: sb route <url>") }
+        guard args.count >= 2 else { fail("usage: sb route <url> [--from <app>]") }
         let u = url(args[1])
-        let p = try router.route(u)
-        let why = router.matchingRule(for: u).map { "rule \($0.match)" } ?? "fallback"
-        print("\(p.label)  ← \(why)")
+        var source: Source?
+        if let i = args.firstIndex(of: "--from"), args.count > i + 1 {
+            source = Source(bundleID: args[i + 1], name: args[i + 1])
+        }
+        let p = try router.route(u, from: source)
+        let why = router.matchingRule(for: u, from: source).map { "rule \($0.display)" } ?? "fallback"
+        let real = Unwrap.destination(of: u)
+        let via = real.host != u.host ? "  (real destination: \(real.host ?? ""))" : ""
+        print("\(p.label)  ← \(why)\(via)")
 
     case "rules":
         if config.rules.isEmpty { print("No rules yet. Run `sb init` or edit \(Config.defaultURL.path)") }
-        for (i, r) in config.rules.enumerated() { print("\(i + 1). \(r.match) → \(r.open)") }
+        for (i, r) in config.rules.enumerated() { print("\(i + 1). \(r.display) → \(r.open)") }
         print("   anything else → \(config.fallback ?? "(no fallback)")")
 
     case "init":

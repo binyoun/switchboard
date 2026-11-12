@@ -1,13 +1,20 @@
 import Foundation
 
-/// A routing rule: links whose host matches `match` open in profile `open` (an alias or ref).
+/// A routing rule. Links open in profile `open` (an alias or ref) when every given condition holds:
+/// `match` — the link's host pattern; `from` — the app it was clicked in (bundle ID or name).
 public struct Rule: Codable, Hashable {
-    public var match: String
+    public var match: String?
+    public var from: String?
     public var open: String
 
-    public init(match: String, open: String) {
+    public init(match: String? = nil, from: String? = nil, open: String) {
         self.match = match
+        self.from = from
         self.open = open
+    }
+
+    public var display: String {
+        [match, from.map { "from \($0)" }].compactMap { $0 }.joined(separator: " ")
     }
 }
 

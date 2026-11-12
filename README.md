@@ -4,7 +4,7 @@ Open every link in the right browser profile, and switch between profiles with a
 
 If you keep a personal Chrome, a work Chrome, a project Chrome and an Edge for school or Microsoft 365, links keep opening in the wrong one. A Canvas link lands in your personal Google account; a SharePoint file asks you to sign in again. Switchboard sits between your apps and your browsers and sends each link where it belongs.
 
-**Status:** milestone 2 of 5. The menu bar app and its ⌃⌥B picker switch profiles; the `sb` command line tool opens and routes links by rule. Setting Switchboard as your default browser comes next — see [PLAN.md](PLAN.md).
+**Status:** milestone 3 of 5. Set Switchboard as your default browser and every link you click is routed by rule; ⌃⌥B switches profiles; `sb` does both from the terminal. A rules editor comes next — see [PLAN.md](PLAN.md).
 
 ---
 
@@ -14,8 +14,10 @@ If you keep a personal Chrome, a work Chrome, a project Chrome and an Edge for s
 - **Switches with a keystroke.** Press **⌃⌥B** anywhere: a picker shows every profile with its account picture. Type to filter, **1–9** or **↩** to open, **⇧↩** to open the link on your clipboard in that profile.
 - **Lives in the menu bar.** The same list, one click per profile, plus *Edit Rules…* and *Open at Login*.
 - **Opens a profile by a short name** from the terminal: `sb open school`, `sb open work https://…`.
-- **Routes links by rule.** `*.sharepoint.com` → Edge, `*.instructure.com` (Canvas) → Edge, everything else → your personal Chrome. First match wins.
-- *Coming:* set Switchboard as your default browser, so links from Mail, Slack, Teams or Notes are routed too.
+- **Routes every link you click.** Make Switchboard the default browser and links from Mail, Slack, Teams, Notes or anywhere else go by rule: `*.sharepoint.com` → Edge, `*.instructure.com` (Canvas) → Edge, everything else → your personal Chrome.
+- **Knows where the link came from.** A rule can say "links clicked in Teams open in Edge", on its own or together with a host.
+- **Sees through redirect wrappers.** Outlook Safe Links, Google, Facebook, Instagram, LinkedIn and Slack redirects are matched by their real destination. The original link is still opened, so Safe Links scanning keeps working.
+- **Lets you choose when you want to.** Hold **⌥** while clicking a link to pick the profile yourself. A link that no rule covers (and no fallback) also asks.
 
 Everything is local. Switchboard reads files your browsers already keep and starts them with `open`; it does not touch cookies, passwords or history.
 
@@ -40,6 +42,12 @@ With Xcode installed, `swift build -c release` works too.
 ---
 
 ## Use
+
+### Make it the default browser
+
+Menu bar icon → **Make Default Browser…**, then confirm in the macOS dialog. Or System Settings → Desktop & Dock → Default web browser → Switchboard. To undo, pick Chrome there again.
+
+From then on every link goes through your rules. **Show Link Log** in the menu lists recent decisions (time, host, source app, profile, and the rule that decided), so a wrong route is easy to trace. The log records hosts only, never full addresses.
 
 ### Menu bar and picker
 
@@ -71,6 +79,7 @@ sb init                          # write a starter config from the profiles foun
 sb open work                     # new window in that profile
 sb open school canvas.uni.edu    # open a link in a profile
 sb route https://uni-my.sharepoint.com/…   # where would this go? (does not open)
+sb route github.com --from com.microsoft.teams2   # …if clicked in Teams
 sb go https://uni-my.sharepoint.com/…      # open it there
 sb rules                         # list rules in order
 ```
@@ -94,14 +103,17 @@ A profile can be named by alias (`school`), ref (`edge:Default`), the name shown
     { "match": "*.sharepoint.com",  "open": "school" },
     { "match": "*.instructure.com", "open": "school" },
     { "match": "*.uni.example",     "open": "school" },
-    { "match": "github.com",        "open": "work" }
+    { "match": "github.com",        "open": "work" },
+    { "from": "com.microsoft.teams2", "open": "school" }
   ],
   "fallback": "personal"
 }
 ```
 
-- `*.example.com` matches `example.com` and every subdomain. Anything without `*.` must match the host exactly.
-- Rules are checked top to bottom; put specific ones first.
+- `match` is a host pattern. `*.example.com` matches `example.com` and every subdomain; anything without `*.` must match the host exactly.
+- `from` is the app the link was clicked in, by bundle ID (`com.microsoft.teams2`) or name (`Microsoft Teams`). A rule with both needs both. Find an app's bundle ID with `osascript -e 'id of app "Microsoft Teams"'`.
+- Rules are checked top to bottom; put specific ones first. A `from` rule catches everything from that app, so put host rules you always want (like `*.google.com` → personal) above it.
+- The config is read on every click: edits apply straight away.
 - `"hotkey": "cmd+shift+space"` changes the picker shortcut (modifiers: `ctrl`, `option`, `shift`, `cmd`; keys: letters, digits, `space`, `return`, `tab`). Choose *Reload* in the menu afterwards. If another app already holds the shortcut, the menu says so.
 - `sb init` starts the Edge profile with the common Microsoft 365 and Canvas hosts: SharePoint and OneDrive (`*.sharepoint.com`), Outlook and Forms (`*.office.com`), Loop and Engage (`*.cloud.microsoft`), Teams, Microsoft sign-in, and Canvas (`*.instructure.com`). Add your institution's own domains.
 
@@ -128,7 +140,7 @@ scripts/build.sh           swiftc-only build of sb and Switchboard.app (no Xcode
 
 1. ✅ Profile discovery and `sb` CLI
 2. ✅ Menu bar switcher with a global hotkey
-3. Default-browser router app (rules by domain, by source app, and a modifier key for "ask me")
+3. ✅ Default-browser router app (rules by domain, by source app, and a modifier key for "ask me")
 4. Rules editor and "always open this site here"
 5. Send the current tab to another profile
 

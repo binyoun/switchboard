@@ -15,6 +15,8 @@ final class PickerModel: ObservableObject {
     @Published var rows: [Row] = []
     /// A link on the clipboard that ⇧↩ will open in the chosen profile.
     @Published var clipboardURL: URL?
+    /// A clicked link waiting for a profile (⌥-click, or no rule matched).
+    @Published var link: URL?
 
     var filtered: [Row] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -39,7 +41,20 @@ struct PickerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextField("Open a profile…", text: $model.query)
+            if let link = model.link {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Open \(Unwrap.destination(of: link).host ?? "link") in…")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(link.absoluteString)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 14)
+            }
+            TextField(model.link == nil ? "Open a profile…" : "Filter profiles…", text: $model.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 20))
                 .padding(.horizontal, 18)
@@ -67,7 +82,7 @@ struct PickerView: View {
             HStack(spacing: 14) {
                 Text("↩ open")
                 Text("1–9 jump")
-                if let url = model.clipboardURL {
+                if model.link == nil, let url = model.clipboardURL {
                     Text("⇧↩ open \(url.host ?? "link")")
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -156,11 +171,12 @@ final class PickerController {
 
     var isVisible: Bool { panel?.isVisible ?? false }
 
-    func show(rows: [PickerModel.Row], hotkey: String) {
+    func show(rows: [PickerModel.Row], hotkey: String, link: URL? = nil, preselect: Profile? = nil) {
         model.rows = rows
         model.query = ""
-        model.selected = 0
-        model.clipboardURL = Self.clipboardURL()
+        model.selected = preselect.flatMap { p in rows.firstIndex { $0.profile == p } } ?? 0
+        model.link = link
+        model.clipboardURL = link == nil ? Self.clipboardURL() : nil
 
         let panel = self.panel ?? makePanel()
         self.panel = panel
@@ -182,7 +198,7 @@ final class PickerController {
     }
 
     private func choose(_ p: Profile, shift: Bool) {
-        let url = shift ? model.clipboardURL : nil
+        let url = model.link ?? (shift ? model.clipboardURL : nil)
         hide(returnFocus: false)
         onChoose?(p, url)
     }

@@ -33,6 +33,9 @@ case "$1" in
     pkill -x Switchboard 2>/dev/null || true
     rm -rf ~/Applications/Switchboard.app
     cp -R "$APP" ~/Applications/
+    # Tell Launch Services about the new copy so it can be chosen as the default browser.
+    /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+      -f ~/Applications/Switchboard.app
     if [ -w /usr/local/bin ]; then cp "$B/sb" /usr/local/bin/sb; echo "Installed sb to /usr/local/bin"; fi
     echo "Installed ~/Applications/Switchboard.app"
     open ~/Applications/Switchboard.app

@@ -11,6 +11,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var hotkey = Hotkey(Config.defaultHotkey)!
     private var hotkeyOK = true
 
+    func applicationWillFinishLaunching(_ note: Notification) {
+        // Links arrive as "get URL" Apple events. Registering here (not in didFinish) catches the
+        // link that launched the app, and the event tells us which app the link was clicked in.
+        NSAppleEventManager.shared().setEventHandler(
+            self, andSelector: #selector(handleGetURL(_:reply:)),
+            forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
+        picker.onChoose = { [weak self] profile, url in self?.open(profile, url: url) }
+    }
+
     func applicationDidFinishLaunching(_ note: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
@@ -22,7 +31,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         statusItem.menu = menu
 
-        picker.onChoose = { [weak self] profile, url in self?.open(profile, url: url) }
         reload()
 
         // `open -a Switchboard --args --picker` shows the picker straight away (handy for scripts).
@@ -50,6 +58,85 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DispatchQueue.global(qos: .userInitiated).async {
             _ = try? Launcher.open(profile, url: url)
         }
+    }
+
+    // MARK: links
+
+    @objc private func handleGetURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
+        guard let s = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
+              let url = URL(string: s) else { return }
+        var source: Source?
+        if let pid = event.attributeDescriptor(forKeyword: AEKeyword(keySenderPIDAttr))?.int32Value,
+           let app = NSRunningApplication(processIdentifier: pid_t(pid)) {
+            source = Source(bundleID: app.bundleIdentifier, name: app.localizedName)
+        }
+        handle(url, from: source)
+    }
+
+    /// .html files opened with Switchboard (double-click, or "Open With").
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { handle(url, from: nil) }
+    }
+
+    private func handle(_ url: URL, from source: Source?) {
+        // Fresh every time, so edits to the config apply to the next click without Reload.
+        config = (try? Config.load()) ?? config
+        profiles = ProfileDiscovery.all()
+        let router = Router(config: config, profiles: profiles)
+        let host = url.isFileURL ? "file" : (Unwrap.destination(of: url).host ?? "?")
+        let from = source.map { "  from \($0.display)" } ?? ""
+
+        // Hold ⌥ while clicking to choose the profile yourself.
+        if NSEvent.modifierFlags.contains(.option) {
+            LinkLog.write("\(host)\(from)  → picker (⌥ held)")
+            picker.show(rows: rows(), hotkey: hotkey.display, link: url,
+                        preselect: try? router.route(url, from: source))
+            return
+        }
+        do {
+            let p = try router.route(url, from: source)
+            let why = router.matchingRule(for: url, from: source).map { "rule \($0.display)" } ?? "fallback"
+            LinkLog.write("\(host)\(from)  → \(p.ref) (\(why))")
+            open(p, url: url)
+        } catch {
+            // No rule, no fallback, or a rule naming a profile that no longer exists: ask.
+            LinkLog.write("\(host)\(from)  → picker (\(error))")
+            picker.show(rows: rows(), hotkey: hotkey.display, link: url)
+        }
+    }
+
+    // MARK: default browser
+
+    private var isDefaultBrowser: Bool {
+        guard let app = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!)
+        else { return false }
+        return Bundle(url: app)?.bundleIdentifier == Bundle.main.bundleIdentifier
+    }
+
+    @objc private func makeDefaultBrowser() {
+        // macOS asks the user to confirm; nothing changes until they choose.
+        let me = Bundle.main.bundleURL
+        NSWorkspace.shared.setDefaultApplication(at: me, toOpenURLsWithScheme: "http") { error in
+            guard error == nil else { return self.report(error) }
+            NSWorkspace.shared.setDefaultApplication(at: me, toOpenURLsWithScheme: "https") { error in
+                self.report(error)
+            }
+        }
+    }
+
+    private func report(_ error: Error?) {
+        guard let error else { return }
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Switchboard is not the default browser"
+            alert.informativeText = "\(error.localizedDescription)\n\nYou can also choose it in System Settings → Desktop & Dock → Default web browser."
+            alert.runModal()
+        }
+    }
+
+    @objc private func showLog() {
+        if !FileManager.default.fileExists(atPath: LinkLog.url.path) { LinkLog.write("log started") }
+        NSWorkspace.shared.open(LinkLog.url)
     }
 
     // MARK: picker
@@ -99,7 +186,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+        if isDefaultBrowser {
+            let d = menu.addItem(withTitle: "Routing links (default browser)", action: nil, keyEquivalent: "")
+            d.state = .on
+            menu.addItem(withTitle: "Hold ⌥ when clicking a link to choose", action: nil, keyEquivalent: "")
+        } else {
+            add(menu, "Make Default Browser…", #selector(makeDefaultBrowser))
+        }
         add(menu, "Edit Rules…", #selector(editConfig))
+        add(menu, "Show Link Log", #selector(showLog))
         add(menu, "Reload", #selector(reloadAction))
         let login = add(menu, "Open at Login", #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
