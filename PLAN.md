@@ -53,7 +53,7 @@ One place to (a) jump to any browser profile and (b) have every clicked link ope
 
 ## Known hard parts
 
-- **Focusing an existing window of a given profile.** Chrome's AppleScript lists windows (id, mode, minimised, full title) but not their profile. Done in `Windows.pick`: (1) window IDs Switchboard has seen the profile use, learned 1 s after every launch from `id of window 1`; (2) any normal window if the browser has one profile; (3) a title ending " - <profile name>", longest name first. Otherwise a new window. The title format is Chromium's multi-profile behaviour and may change; (1) and (2) do not depend on it.
+- **Focusing an existing window of a given profile.** Chrome's AppleScript lists windows (id, mode, minimised, name) but not their profile, and the name is only the tab title. The AppleScript window ID is Chromium's session ID, which the profile's newest `Sessions/Session_*` (SNSS) file records as the first int32 of its window commands. `Windows.pick`: (1) any normal window if the browser has one profile; (2) a window the profile's session file lists; (3) a window Switchboard saw the profile use (learned 1 s after a launch), unless a session file gives it to another profile. Otherwise a new window. Note: inside `tell application "Google Chrome"`, `tab` is the tab class, not a tab character.
 - **AppleScript permission.** Reading the active tab (milestone 5) needs Automation permission for each browser; the first call shows a macOS prompt.
 - **Same Google account in two profiles.** Rules route by host, not by account; `docs.google.com` can only go to one profile unless the picker is used.
 

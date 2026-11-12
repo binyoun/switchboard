@@ -13,6 +13,7 @@ sb — open links in the right browser profile
   sb rules                 list rules in order
   sb suggest <profile>     sites bookmarked in a profile that open elsewhere
                            (--add host,host… adds rules for them)
+  sb windows               which profile each open browser window belongs to
   sb init                  write a starter config from the profiles found
 
 <profile> is an alias (school), a ref (edge:Default), a profile name or an email.
@@ -51,6 +52,23 @@ do {
             let a = aliases(for: p)
             let tag = a.isEmpty ? "" : "  [\(a.joined(separator: ", "))]"
             print(p.ref.padding(toLength: w + 2, withPad: " ", startingAt: 0) + p.label + tag)
+        }
+
+    case "windows":
+        for b in Browser.all where !profiles.filter({ $0.browser == b }).isEmpty {
+            let out: String
+            switch ActiveTab.script(Windows.listScript(b), browser: b) {
+            case .success(let s): out = s
+            case .failure(let f): print("\(b.id): \(f)"); continue
+            }
+            let siblings = profiles.filter { $0.browser == b }
+            let owners = Windows.owners(b, profiles: siblings)
+            for w in Windows.parse(out) {
+                let owner = siblings.count == 1 ? siblings[0]
+                    : siblings.first { $0.directory == owners[w.id] }
+                let who = owner.map { aliases(for: $0).first ?? $0.ref } ?? "?"
+                print("\(b.id) \(w.id)  \(w.mode)\(w.minimized ? ", minimised" : "")  → \(who)  \(w.title)")
+            }
         }
 
     case "open":

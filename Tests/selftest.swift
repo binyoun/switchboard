@@ -104,19 +104,27 @@ check(Hotkey(Config.defaultSendHotkey)?.display == "⌃⌥⇧B", "send shortcut"
 // Finding a profile's window
 let wins = Windows.parse("11\tnormal\tfalse\tInbox - Gmail - Work\n12\tincognito\tfalse\tSecret - Personal\n13\tnormal\ttrue\tNews - Personal\n14\tnormal\tfalse\tTabs\twith a tab - Ten\n")
 check(wins.count == 4 && wins[2].minimized && wins[3].title == "Tabs\twith a tab - Ten", "window list parsed")
-let personal = chrome[0], work = chrome[1], ten = chrome[2]
-check(Windows.pick(for: work, in: wins, known: [], siblings: chrome)?.id == "11", "match by title suffix")
-check(Windows.pick(for: personal, in: wins, known: [], siblings: chrome)?.id == "13", "skips incognito, finds minimized")
-check(Windows.pick(for: ten, in: wins, known: [], siblings: chrome)?.id == "14", "titles may contain tabs")
-check(Windows.pick(for: personal, in: wins, known: ["99", "11"], siblings: chrome)?.id == "11", "known window wins, gone ones skipped")
+let personal = chrome[0], work = chrome[1]
+let owners = ["11": "Profile 2", "13": "Default", "14": "Profile 10"]
+check(Windows.pick(for: work, in: wins, owners: owners, known: [], siblings: chrome)?.id == "11", "window found through its session file")
+check(Windows.pick(for: personal, in: wins, owners: owners, known: [], siblings: chrome)?.id == "13", "skips incognito, finds minimized")
+check(Windows.pick(for: personal, in: wins, owners: [:], known: ["99", "11"], siblings: chrome)?.id == "11", "known window used, gone ones skipped")
+check(Windows.pick(for: personal, in: wins, owners: owners, known: ["11"], siblings: chrome)?.id == "13", "session file beats memory")
+check(Windows.pick(for: chrome[2], in: wins, owners: ["11": "Profile 2"], known: ["11"], siblings: chrome) == nil, "memory cannot claim another profile's window")
 check(Windows.pick(for: edge, in: [BrowserWindow(id: "5", mode: "normal", minimized: false, title: "Canvas")],
-                   known: [], siblings: [edge])?.id == "5", "single-profile browser: any window")
+                   owners: [:], known: [], siblings: [edge])?.id == "5", "single-profile browser: any window")
 check(Windows.pick(for: work, in: [BrowserWindow(id: "6", mode: "normal", minimized: false, title: "Untitled")],
-                   known: [], siblings: chrome) == nil, "no match → new window")
-let similar = [Profile(browser: .chrome, directory: "Default", name: "Bin", email: nil),
-               Profile(browser: .chrome, directory: "Profile 4", name: "Bin Work", email: nil)]
-check(Windows.pick(for: similar[0], in: [BrowserWindow(id: "7", mode: "normal", minimized: false, title: "Doc - Bin Work")],
-                   known: [], siblings: similar) == nil, "a shorter name does not claim a longer one's window")
+                   owners: [:], known: [], siblings: chrome) == nil, "no match → new window")
+check(!Windows.listScript(.chrome).contains("& tab &"), "list script does not use the word tab inside tell")
+// SNSS: header, then [uint16 size][command id][payload]; the first payload int32 is the ID.
+var snss = Data("SNSS".utf8) + Data([3, 0, 0, 0])
+for (cmd, id) in [(UInt8(0), Int32(881674403)), (UInt8(9), Int32(-5))] {
+    snss += Data([9, 0, cmd]) + withUnsafeBytes(of: id.littleEndian) { Data($0) } + Data([1, 0, 0, 0])
+}
+snss += Data([1, 0, 7])                         // a command with no payload
+snss += Data([200, 0, 1, 2])                    // truncated record at the end
+check(Windows.sessionIDs(in: snss) == [881674403, -5], "session file IDs")
+check(Windows.sessionIDs(in: Data("nope".utf8)).isEmpty, "not a session file")
 
 // Hotkeys
 check(Hotkey("ctrl+option+b")?.keyCode == 11, "hotkey key code")
