@@ -110,6 +110,7 @@ edge:Default      Edge · School (you@uni.example)      [school]
 
 ```sh
 sb init                          # write a starter config from the profiles found
+sb windows                       # which profile each open browser window belongs to
 sb open work                     # new window in that profile
 sb open school canvas.uni.edu    # open a link in a profile
 sb route https://uni-my.sharepoint.com/…   # where would this go? (does not open)
