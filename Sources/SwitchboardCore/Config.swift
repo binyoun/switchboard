@@ -1,0 +1,62 @@
+import Foundation
+
+/// A routing rule: links whose host matches `match` open in profile `open` (an alias or ref).
+public struct Rule: Codable, Hashable {
+    public var match: String
+    public var open: String
+
+    public init(match: String, open: String) {
+        self.match = match
+        self.open = open
+    }
+}
+
+/// ~/.config/switchboard/config.json
+public struct Config: Codable {
+    /// Short names for profiles: "personal" → "chrome:Default".
+    public var aliases: [String: String]
+    /// Checked top to bottom; first match wins.
+    public var rules: [Rule]
+    /// Where links with no matching rule go (alias or ref).
+    public var fallback: String?
+
+    public init(aliases: [String: String] = [:], rules: [Rule] = [], fallback: String? = nil) {
+        self.aliases = aliases
+        self.rules = rules
+        self.fallback = fallback
+    }
+
+    public static var defaultURL: URL {
+        if let custom = ProcessInfo.processInfo.environment["SWITCHBOARD_CONFIG"] {
+            return URL(fileURLWithPath: custom)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/switchboard/config.json")
+    }
+
+    public static func load(from url: URL = defaultURL) throws -> Config {
+        guard FileManager.default.fileExists(atPath: url.path) else { return Config() }
+        return try JSONDecoder().decode(Config.self, from: Data(contentsOf: url))
+    }
+
+    public func save(to url: URL = defaultURL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        try enc.encode(self).write(to: url, options: .atomic)
+    }
+
+    /// Microsoft 365 and Canvas hosts that belong in a work or school profile.
+    /// Generic on purpose: add your own institution's domains in your config.
+    public static let microsoft365Hosts = [
+        "*.sharepoint.com",        // SharePoint and OneDrive for work or school
+        "*.office.com",            // Outlook on the web, Forms, Office apps
+        "*.cloud.microsoft",       // Loop, Engage, the new M365 domain
+        "teams.microsoft.com",
+        "*.teams.microsoft.com",
+        "myaccount.microsoft.com",
+        "login.microsoftonline.com",
+        "*.instructure.com",       // Canvas
+    ]
+}

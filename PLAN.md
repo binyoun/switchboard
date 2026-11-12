@@ -1,0 +1,54 @@
+# Plan
+
+## Goal
+
+One place to (a) jump to any browser profile and (b) have every clicked link open in the right profile, without thinking about it. macOS first, Chromium browsers first (Chrome, Edge).
+
+## Decisions
+
+- **Native Swift.** Becoming the default browser needs a real `.app` that declares http/https handlers; opening a link has to be instant. Electron or a web page cannot do either well.
+- **No Xcode required.** Builds with `swiftc` from Command Line Tools (`scripts/build.sh`); the app bundle will be assembled by script with a hand-written `Info.plist`. `Package.swift` is kept for people who have Xcode.
+- **Config is a JSON file** (`~/.config/switchboard/config.json`), so it can be edited by hand, backed up and diffed. The app's editor writes the same file.
+- **Read only what the browser already publishes.** `Local State` for profiles; no cookies, history or passwords.
+- **Personal for now.** Unsigned app, opened once with right-click → Open. Signing and notarisation only if others ask.
+
+## Milestones
+
+### 1. Profile discovery and CLI ✅
+- Read `Local State` for Chrome and Edge: folder, name, email, order.
+- `sb profiles | open | go | route | rules | init`.
+- Rules: host patterns, first match wins, fallback.
+- Self-checks in `Tests/selftest.swift`.
+
+### 2. Menu bar switcher
+- `MenuBarExtra` listing profiles (browser icon, profile name, email, alias).
+- Global hotkey (default ⌥Space) opens a small picker; 1–9 or type to filter, ↩ to open.
+- Profile avatar colours from `Local State` (`default_avatar_fill_color`, `avatar_icon`).
+- Launch at login.
+
+### 3. Default-browser router
+- `Info.plist` with `CFBundleURLTypes` (http, https) and `public.html` document types; a button to make Switchboard the default browser.
+- On `open URL`: apply rules, open in the matched profile, and return within ~100 ms.
+- Rules by **source app** (links clicked in Teams → school) using the sender of the Apple event.
+- Hold **⌥** while clicking to show the picker instead.
+- Strip common tracking wrappers (Outlook Safe Links, Google redirect) before matching, so the real host decides.
+
+### 4. Rules editor and learning
+- Settings window: aliases, rules (drag to reorder), fallback, hotkey.
+- When the picker is shown for a host with no rule: "Always open *host* here" writes the rule.
+- Import hosts from a profile's bookmarks as suggested rules.
+
+### 5. Handoff
+- Hotkey: send the current tab to another profile (read the active tab URL via AppleScript for Chrome and Edge, then reopen it in the target profile).
+
+## Known hard parts
+
+- **Focusing an existing window of a given profile.** Chrome's AppleScript lists windows but not their profile. Options: match by window title (Chrome adds the profile name when several are open), or remember windows Switchboard opened. Fallback: open a new window, as Chrome's own profile menu does.
+- **AppleScript permission.** Reading the active tab (milestone 5) needs Automation permission for each browser; the first call shows a macOS prompt.
+- **Same Google account in two profiles.** Rules route by host, not by account; `docs.google.com` can only go to one profile unless the picker is used.
+
+## Later
+
+- Brave, Vivaldi, Arc, Chromium (same `Local State` format); Safari profiles; Firefox containers.
+- URL-path rules (`docs.google.com/a/uni.example/*`).
+- Sync config through a dotfiles repo.

@@ -1,0 +1,20 @@
+{
+  "aliases": {
+    "personal": "chrome:Default",
+    "work": "chrome:Profile 2",
+    "school": "edge:Default"
+  },
+  "rules": [
+    { "match": "*.sharepoint.com", "open": "school" },
+    { "match": "*.office.com", "open": "school" },
+    { "match": "*.cloud.microsoft", "open": "school" },
+    { "match": "teams.microsoft.com", "open": "school" },
+    { "match": "*.teams.microsoft.com", "open": "school" },
+    { "match": "myaccount.microsoft.com", "open": "school" },
+    { "match": "login.microsoftonline.com", "open": "school" },
+    { "match": "*.instructure.com", "open": "school" },
+    { "match": "*.uni.example", "open": "school" },
+    { "match": "github.com", "open": "work" }
+  ],
+  "fallback": "personal"
+}
