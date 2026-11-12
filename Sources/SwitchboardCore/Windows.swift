@@ -6,12 +6,15 @@ public struct BrowserWindow: Equatable {
     public let mode: String        // "normal" or "incognito"
     public let minimized: Bool
     public let title: String
+    /// The address of the window's active tab.
+    public let url: URL?
 
-    public init(id: String, mode: String, minimized: Bool, title: String) {
+    public init(id: String, mode: String, minimized: Bool, title: String, url: URL? = nil) {
         self.id = id
         self.mode = mode
         self.minimized = minimized
         self.title = title
+        self.url = url
     }
 }
 
@@ -25,7 +28,7 @@ public enum Windows {
         tell application "\(b.appName)"
             set out to ""
             repeat with w in windows
-                set out to out & (id of w as text) & T & (mode of w as text) & T & (minimized of w as text) & T & (name of w) & linefeed
+                set out to out & (id of w as text) & T & (mode of w as text) & T & (minimized of w as text) & T & (URL of active tab of w) & T & (name of w) & linefeed
             end repeat
             return out
         end tell
@@ -52,13 +55,25 @@ public enum Windows {
         """
     }
 
-    /// Parses `listScript` output: one window per line, front to back.
+    /// Parses `listScript` output: one window per line, front to back
+    /// (id, mode, minimized, active tab address, name).
     public static func parse(_ output: String) -> [BrowserWindow] {
         output.split(separator: "\n").compactMap { line in
-            let f = line.split(separator: "\t", maxSplits: 3, omittingEmptySubsequences: false).map(String.init)
+            let f = line.split(separator: "\t", maxSplits: 4, omittingEmptySubsequences: false).map(String.init)
             guard f.count >= 3, !f[0].isEmpty else { return nil }
-            return BrowserWindow(id: f[0], mode: f[1], minimized: f[2] == "true", title: f.count > 3 ? f[3] : "")
+            return BrowserWindow(id: f[0], mode: f[1], minimized: f[2] == "true",
+                                 title: f.count > 4 ? f[4] : "", url: f.count > 3 ? URL(string: f[3]) : nil)
         }
+    }
+
+    /// The window to bring forward for web app `app` of `profile`, or nil to open it:
+    /// an app window showing the app's address, in that profile (or not yet in any session file).
+    public static func pickApp(_ app: WebApp, of profile: Profile, in windows: [BrowserWindow],
+                               owners: [String: String], apps: Set<String>, siblings: [Profile]) -> BrowserWindow? {
+        windows.filter { w in
+            w.mode == "normal" && apps.contains(w.id) && w.url.map(app.owns) == true
+                && (siblings.count <= 1 || owners[w.id] == nil || owners[w.id] == profile.directory)
+        }.first
     }
 
     /// The window to bring forward for `profile`, or nil to open a new one.

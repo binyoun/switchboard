@@ -51,6 +51,7 @@ final class EditorModel: ObservableObject {
         hotkey = config.hotkey ?? ""
         sendHotkey = config.sendHotkey ?? ""
         closeAfterSend = config.closeAfterSend ?? false
+        apps = config.apps
         if suggestFor.isEmpty { suggestFor = found.first(where: { $0.browser == .edge })?.ref ?? found.first?.ref ?? "" }
         suggestions = []
         suggestionsLoaded = false
@@ -58,8 +59,12 @@ final class EditorModel: ObservableObject {
         message = ""
     }
 
+    /// Not edited here (only in the config file), but kept on Save.
+    private var apps: [WebApp]?
+
     func toConfig() -> Config {
         var c = Config()
+        c.apps = apps
         for row in profiles {
             for a in row.aliases.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) where !a.isEmpty {
                 c.aliases[a] = row.profile.ref

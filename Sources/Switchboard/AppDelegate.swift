@@ -20,8 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSAppleEventManager.shared().setEventHandler(
             self, andSelector: #selector(handleGetURL(_:reply:)),
             forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
-        picker.onChoose = { [weak self] profile, url, mods in
-            self?.chose(profile, url: url, mods: mods)
+        picker.onChoose = { [weak self] row, url, mods in
+            if let app = row.app { self?.openApp(app, in: row.profile) }
+            else { self?.chose(row.profile, url: url, mods: mods) }
         }
         NSApp.mainMenu = Self.mainMenu()
     }
@@ -105,6 +106,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func rows() -> [PickerModel.Row] {
         profiles.map { PickerModel.Row(profile: $0, aliases: config.aliases(for: $0)) }
+            + webApps().map { PickerModel.Row(profile: $0.1, aliases: [], app: $0.0) }
+    }
+
+    /// The config's web apps whose profile exists.
+    private func webApps() -> [(WebApp, Profile)] {
+        let router = Router(config: config, profiles: profiles)
+        return (config.apps ?? []).compactMap { app in
+            (try? router.profile(named: app.profile)).map { (app, $0) }
+        }
+    }
+
+    /// Brings the web app's window forward, or opens the app if it has none.
+    private func openApp(_ app: WebApp, in profile: Profile) {
+        guard let url = URL(string: app.url) else { return }
+        let running = !NSRunningApplication.runningApplications(withBundleIdentifier: profile.browser.bundleID).isEmpty
+        let siblings = profiles.filter { $0.browser == profile.browser }
+        Self.scriptQueue.async {
+            if running,
+               case .success(let out) = ActiveTab.script(Windows.listScript(profile.browser), browser: profile.browser),
+               let w = Windows.pickApp(app, of: profile, in: Windows.parse(out),
+                                       owners: Windows.owners(profile.browser, profiles: siblings),
+                                       apps: Windows.appWindows(profile.browser, profiles: siblings), siblings: siblings),
+               case .success = ActiveTab.script(Windows.focusScript(profile.browser, windowID: w.id), browser: profile.browser) {
+                return
+            }
+            _ = try? Launcher.openApp(profile, url: url)
+        }
     }
 
     /// Window IDs each profile has been seen using (profile ref → IDs, most recent last).
@@ -333,6 +361,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(item)
         }
 
+        let apps = webApps()
+        if !apps.isEmpty { menu.addItem(.separator()) }
+        for (i, (app, p)) in apps.enumerated() {
+            let n = profiles.count + i
+            let item = NSMenuItem(title: "\(app.name)  —  app · \(p.name)", action: #selector(openAppItem(_:)),
+                                  keyEquivalent: n < 9 ? "\(n + 1)" : "")
+            item.keyEquivalentModifierMask = []
+            item.target = self
+            item.representedObject = app.name
+            item.image = Avatar.image(p, size: 22)
+            menu.addItem(item)
+        }
+
         menu.addItem(.separator())
         let pick = NSMenuItem(title: "Open Picker", action: #selector(showPicker), keyEquivalent: "")
         pick.target = self
@@ -398,6 +439,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let mods = NSEvent.modifierFlags
         let url = mods.contains(.shift) ? PickerController.clipboardURL() : nil
         open(p, url: url, newWindow: mods.contains(.option))
+    }
+
+    @objc private func openAppItem(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String,
+              let (app, p) = webApps().first(where: { $0.0.name == name }) else { return }
+        openApp(app, in: p)
     }
 
     @objc private func showPicker() { togglePicker() }

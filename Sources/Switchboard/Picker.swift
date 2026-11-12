@@ -7,7 +7,10 @@ final class PickerModel: ObservableObject {
     struct Row: Identifiable {
         let profile: Profile
         let aliases: [String]
-        var id: String { profile.ref }
+        /// Set for a web app's row; `profile` is then the profile it runs in.
+        var app: WebApp? = nil
+        var id: String { app.map { "app:\($0.name)" } ?? profile.ref }
+        var name: String { app?.name ?? profile.name }
     }
 
     @Published var query = "" { didSet { selected = 0 } }
@@ -28,7 +31,7 @@ final class PickerModel: ObservableObject {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return rows }
         return rows.filter { r in
-            ([r.profile.name, r.profile.email ?? "", r.profile.browser.name] + r.aliases)
+            ([r.name, r.profile.name, r.profile.email ?? "", r.profile.browser.name] + r.aliases)
                 .contains { $0.lowercased().contains(q) }
         }
     }
@@ -43,7 +46,7 @@ final class PickerModel: ObservableObject {
 struct PickerView: View {
     @ObservedObject var model: PickerModel
     let hotkey: String
-    let choose: (Profile, NSEvent.ModifierFlags) -> Void
+    let choose: (PickerModel.Row, NSEvent.ModifierFlags) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -89,7 +92,7 @@ struct PickerView: View {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
                     RowView(row: row, index: i, selected: i == model.selected)
                         .contentShape(Rectangle())
-                        .onTapGesture { choose(row.profile, NSEvent.modifierFlags) }
+                        .onTapGesture { choose(row, NSEvent.modifierFlags) }
                         .onHover { if $0 { model.selected = i } }
                 }
             }
@@ -139,13 +142,13 @@ private struct RowView: View {
             Image(nsImage: Avatar.image(row.profile, size: 30))
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
-                    Text(row.profile.name).font(.system(size: 14, weight: .semibold))
-                    Text(row.profile.browser.name)
+                    Text(row.name).font(.system(size: 14, weight: .semibold))
+                    Text(row.app == nil ? row.profile.browser.name : "app")
                         .font(.system(size: 11))
                         .foregroundColor(selected ? .white.opacity(0.8) : .secondary)
                 }
-                if let email = row.profile.email {
-                    Text(email)
+                if let detail = row.app.map({ _ in "\(row.profile.name) · \(row.profile.browser.name)" }) ?? row.profile.email {
+                    Text(detail)
                         .font(.system(size: 12))
                         .foregroundColor(selected ? .white.opacity(0.85) : .secondary)
                 }
@@ -195,16 +198,16 @@ final class PickerController {
     private var panel: PickerPanel?
     private var keyMonitor: Any?
     private var resignObserver: Any?
-    /// The chosen profile, the link to open (if any), and the modifier keys held.
-    var onChoose: ((Profile, URL?, NSEvent.ModifierFlags) -> Void)?
+    /// The chosen row, the link to open (if any), and the modifier keys held.
+    var onChoose: ((PickerModel.Row, URL?, NSEvent.ModifierFlags) -> Void)?
 
     var isVisible: Bool { panel?.isVisible ?? false }
 
     func show(rows: [PickerModel.Row], hotkey: String, link: URL? = nil, preselect: Profile? = nil,
               sendTab: ActiveTab? = nil, closesByDefault: Bool = false, notice: String? = nil) {
-        model.rows = rows
+        model.rows = link == nil ? rows : rows.filter { $0.app == nil }   // links open in profiles
         model.query = ""
-        model.selected = preselect.flatMap { p in rows.firstIndex { $0.profile == p } } ?? 0
+        model.selected = preselect.flatMap { p in model.rows.firstIndex { $0.app == nil && $0.profile == p } } ?? 0
         model.link = link
         model.sendTab = sendTab
         model.closesByDefault = closesByDefault
@@ -213,8 +216,8 @@ final class PickerController {
 
         let panel = self.panel ?? makePanel()
         self.panel = panel
-        panel.contentView = NSHostingView(rootView: PickerView(model: model, hotkey: hotkey) { [weak self] p, mods in
-            self?.choose(p, mods)
+        panel.contentView = NSHostingView(rootView: PickerView(model: model, hotkey: hotkey) { [weak self] row, mods in
+            self?.choose(row, mods)
         })
         panel.setContentSize(panel.contentView!.fittingSize)
         position(panel)
@@ -230,10 +233,10 @@ final class PickerController {
         if returnFocus { NSApp.hide(nil) }
     }
 
-    private func choose(_ p: Profile, _ mods: NSEvent.ModifierFlags) {
+    private func choose(_ row: PickerModel.Row, _ mods: NSEvent.ModifierFlags) {
         let url = model.link ?? (mods.contains(.shift) ? model.clipboardURL : nil)
         hide(returnFocus: false)
-        onChoose?(p, url, mods)
+        onChoose?(row, url, mods)
     }
 
     private func makePanel() -> PickerPanel {
@@ -272,13 +275,13 @@ final class PickerController {
             case 126: self.model.move(-1); return nil              // ↑
             case 36, 76:                                           // ↩, enter
                 if rows.indices.contains(self.model.selected) {
-                    self.choose(rows[self.model.selected].profile, e.modifierFlags)
+                    self.choose(rows[self.model.selected], e.modifierFlags)
                 }
                 return nil
             default:
                 // By key code, not character: with ⇧ held, "1" arrives as "!".
                 if let n = Self.digitKeys[e.keyCode], rows.indices.contains(n - 1) {
-                    self.choose(rows[n - 1].profile, e.modifierFlags)
+                    self.choose(rows[n - 1], e.modifierFlags)
                     return nil
                 }
                 return e

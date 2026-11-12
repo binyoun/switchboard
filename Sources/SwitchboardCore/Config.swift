@@ -18,6 +18,31 @@ public struct Rule: Codable, Hashable {
     }
 }
 
+/// An installed web app (or any site) to show as its own entry in the picker:
+/// it opens in an app window of `profile`, or that window comes to the front.
+public struct WebApp: Codable, Hashable {
+    public var name: String
+    /// Alias or ref of the profile the app belongs to.
+    public var profile: String
+    /// The app's start address. Windows showing an address under it count as the app.
+    public var url: String
+
+    public init(name: String, profile: String, url: String) {
+        self.name = name
+        self.profile = profile
+        self.url = url
+    }
+
+    /// True when `address` is this app's start address or a page under it.
+    public func owns(_ address: URL) -> Bool {
+        guard let start = URL(string: url), let host = start.host?.lowercased(),
+              address.host?.lowercased() == host, address.port == start.port,
+              address.scheme?.lowercased() == start.scheme?.lowercased() else { return false }
+        let base = start.path.hasSuffix("/") ? start.path : start.path + "/"
+        return start.path.isEmpty || start.path == "/" || address.path == start.path || address.path.hasPrefix(base)
+    }
+}
+
 /// ~/.config/switchboard/config.json
 public struct Config: Codable {
     /// Short names for profiles: "personal" → "chrome:Default".
@@ -32,18 +57,22 @@ public struct Config: Codable {
     public var sendHotkey: String?
     /// When sending a tab, close the original. Off by default: the copy is safer.
     public var closeAfterSend: Bool?
+    /// Web apps listed in the picker after the profiles.
+    public var apps: [WebApp]?
 
     public static let defaultHotkey = "ctrl+option+b"
     public static let defaultSendHotkey = "ctrl+option+shift+b"
 
     public init(aliases: [String: String] = [:], rules: [Rule] = [], fallback: String? = nil,
-                hotkey: String? = nil, sendHotkey: String? = nil, closeAfterSend: Bool? = nil) {
+                hotkey: String? = nil, sendHotkey: String? = nil, closeAfterSend: Bool? = nil,
+                apps: [WebApp]? = nil) {
         self.aliases = aliases
         self.rules = rules
         self.fallback = fallback
         self.hotkey = hotkey
         self.sendHotkey = sendHotkey
         self.closeAfterSend = closeAfterSend
+        self.apps = apps
     }
 
     /// Aliases that point at `profile`, sorted.

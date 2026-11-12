@@ -102,8 +102,9 @@ check(Browser.withBundleID("com.microsoft.edgemac") == .edge, "browser by bundle
 check(Hotkey(Config.defaultSendHotkey)?.display == "⌃⌥⇧B", "send shortcut")
 
 // Finding a profile's window
-let wins = Windows.parse("11\tnormal\tfalse\tInbox - Gmail - Work\n12\tincognito\tfalse\tSecret - Personal\n13\tnormal\ttrue\tNews - Personal\n14\tnormal\tfalse\tTabs\twith a tab - Ten\n")
-check(wins.count == 4 && wins[2].minimized && wins[3].title == "Tabs\twith a tab - Ten", "window list parsed")
+let wins = Windows.parse("11\tnormal\tfalse\thttps://mail.google.com/\tInbox - Gmail\n12\tincognito\tfalse\thttps://x.y/\tSecret\n13\tnormal\ttrue\thttps://news.example/\tNews\n14\tnormal\tfalse\thttp://127.0.0.1:4823/#/teaching\tTabs\twith a tab\n")
+check(wins.count == 4 && wins[2].minimized && wins[3].title == "Tabs\twith a tab", "window list parsed")
+check(wins[0].url?.host == "mail.google.com", "active tab address parsed")
 let personal = chrome[0], work = chrome[1]
 let owners = ["11": "Profile 2", "13": "Default", "14": "Profile 10"]
 check(Windows.pick(for: work, in: wins, owners: owners, known: [], siblings: chrome)?.id == "11", "window found through its session file")
@@ -122,6 +123,17 @@ let both = ["20": "Default", "21": "Default"]
 check(Windows.pick(for: personal, in: [appWin, tabWin], owners: both, apps: ["20"], known: [], siblings: chrome)?.id == "21", "browser window preferred over a web app")
 check(Windows.pick(for: personal, in: [appWin], owners: both, apps: ["20"], known: [], siblings: chrome)?.id == "20", "web app used when it is the only window")
 check(Windows.pick(for: work, in: [appWin], owners: both, apps: ["20"], known: [], siblings: chrome) == nil, "another profile's web app is not used")
+// Web apps
+let garden = WebApp(name: "Garden", profile: "personal", url: "http://127.0.0.1:4823/")
+check(garden.owns(URL(string: "http://127.0.0.1:4823/#/teaching")!), "app owns its pages")
+check(!garden.owns(URL(string: "http://127.0.0.1:5000/")!), "another port is another app")
+check(!WebApp(name: "x", profile: "p", url: "https://a.com/app").owns(URL(string: "https://a.com/apple")!), "path prefix is by segment")
+check(WebApp(name: "x", profile: "p", url: "https://a.com/app").owns(URL(string: "https://a.com/app/1")!), "pages under the path")
+let gardenWins = [wins[3], BrowserWindow(id: "15", mode: "normal", minimized: false, title: "G", url: URL(string: "http://127.0.0.1:4823/"))]
+check(Windows.pickApp(garden, of: personal, in: gardenWins, owners: ["14": "Default", "15": "Profile 2"], apps: ["14", "15"], siblings: chrome)?.id == "14", "app window of the right profile")
+check(Windows.pickApp(garden, of: personal, in: gardenWins, owners: [:], apps: [], siblings: chrome) == nil, "a browser tab on the app's site is not the app")
+check(Launcher.appArguments(for: personal, url: URL(string: "http://127.0.0.1:4823/")!).last == "--app=http://127.0.0.1:4823/", "app launch")
+check(try JSONDecoder().decode(Config.self, from: Data(#"{"aliases":{},"rules":[],"apps":[{"name":"G","profile":"bin","url":"http://h/"}]}"#.utf8)).apps?.first?.name == "G", "apps in config")
 // SNSS: header, then [uint16 size][command id][payload]; the first payload int32 is the ID.
 var snss = Data("SNSS".utf8) + Data([3, 0, 0, 0])
 for (cmd, id) in [(UInt8(0), Int32(881674403)), (UInt8(9), Int32(-5))] {

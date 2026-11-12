@@ -70,6 +70,18 @@ In the menu, hold ⇧ while choosing a profile to open the clipboard link there,
 
 **How Switchboard finds a profile's window.** Chrome and Edge do not tell other apps which profile a window belongs to, so Switchboard looks each open window up in the profiles' session files (`<profile>/Sessions/Session_*`), where the browser records its windows (installed web apps, like a garden app, count too: switching brings a profile's browser window forward first, and its web app only if no browser window is open). A window opened in the last few seconds may not be written there yet, so Switchboard also remembers windows it opened itself. With only one profile (Edge, here), any window counts. If none is found, you get a new window. `sb windows` lists each open window with the profile it belongs to. This uses the same Automation permission as sending a tab; without it, switching opens a new window. Links always open as a tab in the profile's existing window. If the menu bar icon is hidden behind the camera notch, the shortcut still works; ⌘-drag menu bar icons to make room.
 
+### Web apps in the picker
+
+An installed web app (or any site you want in its own window) can have its own entry in the picker and the menu, after the profiles. Add it to the config file:
+
+```json
+"apps": [
+  { "name": "Garden", "profile": "personal", "url": "http://127.0.0.1:4823/" }
+]
+```
+
+Choosing it brings that app's window forward, or opens the address as an app window (no tabs or address bar) in that profile. A window counts as the app's when it is an app window of that profile showing the address or a page under it. App entries are hidden when the picker is choosing where a link should open. The rules editor keeps `apps` but does not edit them yet.
+
 ### Send a tab to another profile
 
 With Chrome or Edge in front, press **⌃⌥⇧B**. The picker shows the tab's title, with the profile your rules would choose already selected.

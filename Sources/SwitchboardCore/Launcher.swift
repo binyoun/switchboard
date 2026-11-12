@@ -11,11 +11,26 @@ public enum Launcher {
         return args
     }
 
+    /// The command that opens `url` as an app window (no tabs or address bar) in `profile`.
+    public static func appArguments(for profile: Profile, url: URL) -> [String] {
+        ["-na", profile.browser.appName, "--args",
+         "--profile-directory=\(profile.directory)", "--app=\(url.absoluteString)"]
+    }
+
     @discardableResult
     public static func open(_ profile: Profile, url: URL? = nil) throws -> Int32 {
+        try run(arguments(for: profile, url: url))
+    }
+
+    @discardableResult
+    public static func openApp(_ profile: Profile, url: URL) throws -> Int32 {
+        try run(appArguments(for: profile, url: url))
+    }
+
+    private static func run(_ arguments: [String]) throws -> Int32 {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        p.arguments = arguments(for: profile, url: url)
+        p.arguments = arguments
         try p.run()
         p.waitUntilExit()
         return p.terminationStatus
