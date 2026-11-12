@@ -20,11 +20,13 @@ One place to (a) jump to any browser profile and (b) have every clicked link ope
 - Rules: host patterns, first match wins, fallback.
 - Self-checks in `Tests/selftest.swift`.
 
-### 2. Menu bar switcher
-- `MenuBarExtra` listing profiles (browser icon, profile name, email, alias).
-- Global hotkey (default ⌥Space) opens a small picker; 1–9 or type to filter, ↩ to open.
-- Profile avatar colours from `Local State` (`default_avatar_fill_color`, `avatar_icon`).
-- Launch at login.
+### 2. Menu bar switcher ✅
+- AppKit status item listing profiles: account picture (or theme colour and initial), browser badge, email, aliases; 1–9 while the menu is open.
+- Global hotkey (default ⌃⌥B, set with `"hotkey"` in the config) via Carbon `RegisterEventHotKey`, so no Accessibility permission. ⌥Space was avoided because other assistants use it.
+- Floating picker (SwiftUI in an NSPanel): type to filter, ↑↓, ↩ or 1–9 to open, ⇧ to open the clipboard link in the chosen profile, esc or click away to close.
+- Pictures from each profile's cached `Google Profile Picture.png` / `Edge Profile Picture.png`; colours from `profile_color_seed`.
+- Open at Login through `SMAppService`; *Edit Rules…* opens the config as text.
+- `scripts/build.sh install` bundles, ad-hoc signs and installs to ~/Applications.
 
 ### 3. Default-browser router
 - `Info.plist` with `CFBundleURLTypes` (http, https) and `public.html` document types; a button to make Switchboard the default browser.

@@ -11,5 +11,7 @@ let package = Package(
     targets: [
         .target(name: "SwitchboardCore"),
         .executableTarget(name: "sb", dependencies: ["SwitchboardCore"]),
+        // The menu bar app. `swift build` gives a bare binary; scripts/build.sh makes the .app bundle.
+        .executableTarget(name: "Switchboard", dependencies: ["SwitchboardCore"]),
     ]
 )

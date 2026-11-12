@@ -19,11 +19,22 @@ public struct Config: Codable {
     public var rules: [Rule]
     /// Where links with no matching rule go (alias or ref).
     public var fallback: String?
+    /// Global shortcut for the picker, e.g. "ctrl+option+b". Nil means the default.
+    public var hotkey: String?
 
-    public init(aliases: [String: String] = [:], rules: [Rule] = [], fallback: String? = nil) {
+    public static let defaultHotkey = "ctrl+option+b"
+
+    public init(aliases: [String: String] = [:], rules: [Rule] = [], fallback: String? = nil,
+                hotkey: String? = nil) {
         self.aliases = aliases
         self.rules = rules
         self.fallback = fallback
+        self.hotkey = hotkey
+    }
+
+    /// Aliases that point at `profile`, sorted.
+    public func aliases(for profile: Profile) -> [String] {
+        aliases.filter { $0.value.lowercased() == profile.ref.lowercased() }.map(\.key).sorted()
     }
 
     public static var defaultURL: URL {

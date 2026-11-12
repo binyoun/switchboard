@@ -36,9 +36,7 @@ do { config = try Config.load() } catch { fail("Could not read config: \(error)"
 let profiles = ProfileDiscovery.all()
 let router = Router(config: config, profiles: profiles)
 
-func aliases(for p: Profile) -> [String] {
-    config.aliases.filter { $0.value.lowercased() == p.ref.lowercased() }.map(\.key).sorted()
-}
+func aliases(for p: Profile) -> [String] { config.aliases(for: p) }
 
 do {
     switch cmd {

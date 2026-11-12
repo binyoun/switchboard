@@ -49,5 +49,19 @@ let p = Profile(browser: .edge, directory: "Profile 3", name: "x", email: nil)
 check(Launcher.arguments(for: p, url: URL(string: "https://a.b")) ==
       ["-na", "Microsoft Edge", "--args", "--profile-directory=Profile 3", "https://a.b"], "open arguments")
 
+// Hotkeys
+check(Hotkey("ctrl+option+b")?.keyCode == 11, "hotkey key code")
+check(Hotkey("ctrl+option+b")?.display == "⌃⌥B", "hotkey display")
+check(Hotkey("cmd+shift+space")?.display == "⇧⌘Space", "modifier order")
+check(Hotkey("b") == nil, "a hotkey needs a modifier")
+check(Hotkey("ctrl+nope") == nil, "unknown key")
+
+// Colours and pictures
+let coloured = ProfileDiscovery.parse(localState: """
+{"profile":{"info_cache":{"Default":{"name":"A","profile_color_seed":-806210}}}}
+""".data(using: .utf8)!, browser: .chrome)
+check(coloured.first?.color == 0xFFF3_B2BE, "signed ARGB colour becomes unsigned")
+check(coloured.first?.picture == nil, "no picture without a root folder")
+
 print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
 exit(failures == 0 ? 0 : 1)
