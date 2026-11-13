@@ -57,6 +57,9 @@ public struct Config: Codable {
     public var sendHotkey: String?
     /// When sending a tab, close the original. Off by default: the copy is safer.
     public var closeAfterSend: Bool?
+    /// Show the picker for every clicked link, with the rules' choice preselected.
+    /// Off: the rules open links directly (hold ⌥ while clicking to choose).
+    public var askEveryLink: Bool?
     /// Web apps listed in the picker after the profiles.
     public var apps: [WebApp]?
 

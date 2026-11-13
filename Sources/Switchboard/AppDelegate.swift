@@ -215,9 +215,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let host = url.isFileURL ? "file" : (Unwrap.destination(of: url).host ?? "?")
         let from = source.map { "  from \($0.display)" } ?? ""
 
-        // Hold ⌥ while clicking to choose the profile yourself.
-        if NSEvent.modifierFlags.contains(.option) {
-            LinkLog.write("\(host)\(from)  → picker (⌥ held)")
+        // askEveryLink: the picker for every click. ⌥ while clicking does the opposite of the setting.
+        let ask = (config.askEveryLink ?? false) != NSEvent.modifierFlags.contains(.option)
+        if ask {
+            LinkLog.write("\(host)\(from)  → picker (\(config.askEveryLink == true ? "ask every link" : "⌥ held"))")
             picker.show(rows: rows(), hotkey: hotkey.display, link: url,
                         preselect: try? router.route(url, from: source))
             return

@@ -17,7 +17,7 @@ If you keep a personal Chrome, a work Chrome, a project Chrome and an Edge for s
 - **Routes every link you click.** Make Switchboard the default browser and links from Mail, Slack, Teams, Notes or anywhere else go by rule: `*.sharepoint.com` → Edge, `*.instructure.com` (Canvas) → Edge, everything else → your personal Chrome.
 - **Knows where the link came from.** A rule can say "links clicked in Teams open in Edge", on its own or together with a host.
 - **Sees through redirect wrappers.** Outlook Safe Links, Google, Facebook, Instagram, LinkedIn and Slack redirects are matched by their real destination. The original link is still opened, so Safe Links scanning keeps working.
-- **Lets you choose when you want to.** Hold **⌥** while clicking a link to pick the profile yourself. A link that no rule covers (and no fallback) also asks.
+- **Lets you choose when you want to.** Hold **⌥** while clicking a link to pick the profile yourself. A link that no rule covers (and no fallback) also asks. Or turn on *Ask me for every link I click* (`"askEveryLink": true`): every click shows the picker with the rules' choice already selected, so ↩ accepts it and a number picks another; ⌥-click then skips the picker.
 - **Learns.** In that picker, **⌘↩** (or ⌘1–9) opens the link *and* remembers: "always open this site here".
 - **Sends a tab to another profile.** Opened in the wrong account? Press **⌃⌥⇧B** in Chrome or Edge and pick where it should be. **⌥↩** also closes the original.
 - **Has a rules editor.** Aliases, rules in order, fallback, shortcut, a live "test a link" box, and suggestions from a profile's bookmarks.

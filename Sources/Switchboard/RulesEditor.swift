@@ -28,6 +28,7 @@ final class EditorModel: ObservableObject {
     @Published var hotkey = ""
     @Published var sendHotkey = ""
     @Published var closeAfterSend = false
+    @Published var askEveryLink = false
     @Published var testLink = ""
     @Published var testFrom = ""
     @Published var suggestFor = ""
@@ -51,6 +52,7 @@ final class EditorModel: ObservableObject {
         hotkey = config.hotkey ?? ""
         sendHotkey = config.sendHotkey ?? ""
         closeAfterSend = config.closeAfterSend ?? false
+        askEveryLink = config.askEveryLink ?? false
         apps = config.apps
         if suggestFor.isEmpty { suggestFor = found.first(where: { $0.browser == .edge })?.ref ?? found.first?.ref ?? "" }
         suggestions = []
@@ -85,6 +87,7 @@ final class EditorModel: ObservableObject {
         let sh = sendHotkey.trimmingCharacters(in: .whitespaces)
         c.sendHotkey = sh.isEmpty ? nil : sh
         c.closeAfterSend = closeAfterSend ? true : nil
+        c.askEveryLink = askEveryLink ? true : nil
         return c
     }
 
@@ -257,6 +260,8 @@ struct EditorView: View {
                     }
                     .labelsHidden().frame(width: 200)
                 }
+                Toggle("Ask me for every link I click", isOn: $m.askEveryLink)
+                    .help("Shows the picker with the rules' choice already selected: ↩ accepts it, a number picks another. ⌥-click skips the picker.")
             }
             .padding(.top, 4)
             HStack(spacing: 18) {

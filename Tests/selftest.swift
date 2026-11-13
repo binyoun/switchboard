@@ -134,6 +134,7 @@ check(Windows.pickApp(garden, of: personal, in: gardenWins, owners: ["14": "Defa
 check(Windows.pickApp(garden, of: personal, in: gardenWins, owners: [:], apps: [], siblings: chrome) == nil, "a browser tab on the app's site is not the app")
 check(Launcher.appArguments(for: personal, url: URL(string: "http://127.0.0.1:4823/")!).last == "--app=http://127.0.0.1:4823/", "app launch")
 check(try JSONDecoder().decode(Config.self, from: Data(#"{"aliases":{},"rules":[],"apps":[{"name":"G","profile":"bin","url":"http://h/"}]}"#.utf8)).apps?.first?.name == "G", "apps in config")
+check(try JSONDecoder().decode(Config.self, from: Data(#"{"aliases":{},"rules":[],"askEveryLink":true}"#.utf8)).askEveryLink == true, "askEveryLink in config")
 // SNSS: header, then [uint16 size][command id][payload]; the first payload int32 is the ID.
 var snss = Data("SNSS".utf8) + Data([3, 0, 0, 0])
 for (cmd, id) in [(UInt8(0), Int32(881674403)), (UInt8(9), Int32(-5))] {
