@@ -198,6 +198,7 @@ final class PickerController {
     private var panel: PickerPanel?
     private var keyMonitor: Any?
     private var resignObserver: Any?
+    private var shownAt = Date.distantPast
     /// The chosen row, the link to open (if any), and the modifier keys held.
     var onChoose: ((PickerModel.Row, URL?, NSEvent.ModifierFlags) -> Void)?
 
@@ -222,6 +223,7 @@ final class PickerController {
         panel.setContentSize(panel.contentView!.fittingSize)
         position(panel)
 
+        shownAt = Date()
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         installKeys()
@@ -251,7 +253,20 @@ final class PickerController {
         p.isReleasedWhenClosed = false
         resignObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification, object: p, queue: .main
-        ) { [weak self] _ in self?.hide(returnFocus: false) }
+        ) { [weak self] _ in
+            guard let self, let panel = self.panel else { return }
+            // Activating the app can hand focus back to another Switchboard window (the rules
+            // editor) just after the picker appears. Take it back rather than vanish.
+            if Date().timeIntervalSince(self.shownAt) < 1.0, panel.isVisible {
+                DispatchQueue.main.async {
+                    NSApp.activate(ignoringOtherApps: true)
+                    panel.orderFrontRegardless()
+                    panel.makeKey()
+                }
+                return
+            }
+            self.hide(returnFocus: false)
+        }
         return p
     }
 
